@@ -170,7 +170,7 @@ function newRun(){
   const course = buildCourse(T);
   const gates = course.pts.map((p,i) => ({ y:p.y, x:p.x, state:null, color: i%2? 'gate-b':'gate-a' }));
   input.edge = 0;
-  s = { T, x:course.startX, y:0, v:5, h:0, edge:0, prevEdge:0, rate:0, jerk:0, bal:100,
+  s = { T, x:course.startX, y:0, v:5, h:0, edge:0, prevEdge:0, rate:0, rateFast:0, jerk:0, bal:100,
         gates, gi:0, passed:0, finishY: gates[GATE_COUNT-1].y + 25,
         tRun:0, tProg:0, peak:0, tracks:[], trace:[], flash:null, offCool:0,
         fallT:0, spin:0, cause:'', spray:[] };
@@ -248,6 +248,9 @@ function step(dt){
   // rate (deg/s) and change of rate, smoothed so discrete input events don't spike
   const raw = (s.edge - s.prevEdge)/dt; s.prevEdge = s.edge;
   const newRate = s.rate + (raw - s.rate)*(1 - Math.exp(-dt/0.10));
+  // the 0.10 s average keeps the meter and tracks steady but flattens a short snap,
+  // so the fall check reads a lightly smoothed rate that still sees one
+  s.rateFast += (raw - s.rateFast)*(1 - Math.exp(-dt/0.03));
   const rawJerk = (newRate - s.rate)/dt;
   s.jerk += (rawJerk - s.jerk)*(1 - Math.exp(-dt/0.15));
   s.rate = newRate;
@@ -264,9 +267,11 @@ function step(dt){
   if (j > jLimit) s.bal -= (j-jLimit)*0.09*dt;
   s.bal = Math.min(100, s.bal);
 
-  if (s.bal <= 0 || r > T.t2*1.5){
-    const increasing = Math.sign(s.rate)===Math.sign(s.edge) && Math.abs(s.edge) > 3;
-    if (r < T.t1) s.cause = 'Edging movement started and stopped abruptly.';
+  const rf = Math.abs(s.rateFast);
+  if (s.bal <= 0 || r > T.t2*1.5 || rf > T.t2*1.5){
+    s.peak = Math.max(s.peak, rf);
+    const increasing = Math.sign(rf > r ? s.rateFast : s.rate)===Math.sign(s.edge) && Math.abs(s.edge) > 3;
+    if (Math.max(r, rf) < T.t1) s.cause = 'Edging movement started and stopped abruptly.';
     else s.cause = increasing ? 'Edge angle increased abruptly.' : 'Edges flattened abruptly. Skis slip.';
     s.bal = 0; mode = 'fall'; s.fallT = 0; s.spin = (Math.random()<.5?-1:1)*(4+Math.random()*3);
     for (let i=0;i<26;i++) s.spray.push({x:s.x, y:s.y, vx:(Math.random()-.5)*6 + s.v*Math.sin(s.h)*.5, vy:Math.random()*4 + s.v*Math.cos(s.h)*.5, life:1});

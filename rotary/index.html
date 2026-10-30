@@ -35,17 +35,19 @@
 *,*::before,*::after{box-sizing:inherit}
 html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);}
 body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Barlow,"Helvetica Neue",Arial,sans-serif;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
-.app{height:100%;max-width:520px;margin:0 auto;display:flex;flex-direction:column}
-.hud{display:grid;grid-template-columns:auto auto auto 1fr;gap:18px;align-items:end;padding:10px 16px 8px}
+.app{position:relative;height:100%;max-width:520px;margin:0 auto;display:flex;flex-direction:column}
+.hud{display:grid;grid-template-columns:auto auto auto 1fr auto;gap:16px;align-items:end;padding:10px 16px 8px}
+.pause{align-self:center;width:36px;height:36px;padding:0;display:grid;place-items:center;border-radius:8px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+.pause:focus-visible{outline:3px solid var(--ink-soft);outline-offset:1px}
 .stat .k,.k{display:block;font-size:12px;color:var(--ink-soft);letter-spacing:.02em}
 .stat .v{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:26px;line-height:1;font-variant-numeric:tabular-nums}
 .progress .bar{height:10px;border-radius:5px;background:var(--snow-shade);overflow:hidden;margin-top:6px}
 .progress .bar i{display:block;height:100%;width:0;background:var(--ink-soft)}
 .stage{position:relative;flex:1;min-height:0}
 #slope{position:absolute;inset:0;width:100%;height:100%;display:block}
-.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--scrim);overflow-y:auto}
+.overlay{position:absolute;inset:0;z-index:2;display:flex;padding:20px;background:var(--scrim);overflow-y:auto}
 .overlay[hidden]{display:none}
-.card{max-width:360px}
+.card{max-width:360px;margin:auto}
 .back{display:inline-block;margin:0 0 10px;padding:6px 0;font:600 14px Barlow,sans-serif;color:var(--ink-soft);text-decoration:none}
 .back:hover,.back:focus-visible{color:var(--ink);text-decoration:underline}
 .card h1,.card h2{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;margin:0 0 6px;line-height:.95}
@@ -84,11 +86,11 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
     <div class="stat"><span class="k">km/h</span><span class="v" id="speed">0</span></div>
     <div class="stat"><span class="k">Pitch</span><span class="v" id="pitch">–</span></div>
     <div class="progress"><span class="k">Run</span><div class="bar"><i id="progFill"></i></div></div>
+    <button class="pause" id="pause" aria-label="Pause"><svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="1" width="4" height="14" rx="1" fill="currentColor"/><rect x="9" y="1" width="4" height="14" rx="1" fill="currentColor"/></svg></button>
   </header>
 
   <div class="stage" id="stage">
     <canvas id="slope" aria-label="Ski slope with skier and tracks"></canvas>
-    <div class="overlay" id="overlay"><div class="card" id="card"></div></div>
   </div>
 
   <section class="controls">
@@ -100,6 +102,7 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
     <canvas id="trace" aria-label="Speed over the last six seconds"></canvas>
     <canvas id="wheel" tabindex="0" role="slider" aria-label="Ski direction wheel" aria-valuemin="-90" aria-valuemax="90" aria-valuenow="0" aria-valuetext="Fall line"></canvas>
   </section>
+  <div class="overlay" id="overlay"><div class="card" id="card"></div></div>
 </main>
 
 <script>
@@ -203,6 +206,7 @@ function pointerAngle(e){
   return { a: Math.atan2(dx, -dy)*180/Math.PI, d: Math.hypot(dx, dy) };
 }
 wc.addEventListener('pointerdown', e => {
+  if (mode==='paused') return;
   wc.setPointerCapture(e.pointerId);
   drag = pointerAngle(e);
   wc.classList.add('active');
@@ -222,6 +226,10 @@ wc.addEventListener('pointerup', endDrag);
 wc.addEventListener('pointercancel', endDrag);
 
 window.addEventListener('keydown', e => {
+  if ((e.key==='Escape' || e.key==='p' || e.key==='P') && (mode==='run' || mode==='paused')){
+    mode==='run' ? pause() : resume(); e.preventDefault(); return;
+  }
+  if (mode==='paused' && (e.key==='ArrowLeft' || e.key==='ArrowRight')) return;
   if (e.key==='ArrowLeft' || e.key==='ArrowRight'){
     input.keyDir = e.key==='ArrowLeft'? -1 : 1; input.fast = e.shiftKey; e.preventDefault();
   } else if ((e.key===' '||e.key==='Enter') && mode!=='run'){
@@ -519,6 +527,7 @@ function drawWheel(){
 }
 
 function updateUI(){
+  $('pause').style.visibility = mode==='run' ? 'visible' : 'hidden';
   const T = s.T, kmh = s.v*3.6;
   $('steady').textContent = s.tRun > 0.5 ? Math.round(s.tIn/s.tRun*100)+'%' : '–';
   $('speed').textContent = Math.round(kmh);
@@ -608,6 +617,25 @@ function showDone(){
   else lead = 'Mostly too slow. Let the skis point further down the hill before turning them across.';
   results('Run complete', `<p>${lead}</p>`);
 }
+
+function pause(){
+  if (mode!=='run') return;
+  mode = 'paused'; input.keyDir = 0; endDrag();
+  card.innerHTML = `
+    <a class="back" href="../">← All games</a>
+    <h2>Paused</h2>
+    <p>${Math.round(s.tIn/Math.max(s.tRun,1e-9)*100) + '% steady so far, ' + Math.round(s.y/s.T.len*100) + '% of the way down.'}</p>
+    <button class="btn" id="resume">Resume</button>
+    <button class="btn ghost" id="restart">Restart run</button>
+    <button class="btn ghost" id="menu">Change trail</button>`;
+  $('resume').onclick = resume; $('restart').onclick = start; $('menu').onclick = showMenu;
+  overlay.hidden = false;
+  $('resume').focus({preventScroll:true});
+}
+// the control is locked while paused, so the run picks up exactly where it stopped
+function resume(){ overlay.hidden = true; mode = 'run'; wc.focus({preventScroll:true}); last = performance.now(); }
+$('pause').onclick = pause;
+document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
 // ---------- loop ----------
 let last = performance.now();

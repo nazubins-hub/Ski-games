@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rotary</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --snow:#F3F7FA; --snow-shade:#D9E3EC; --ink:#17243A; --ink-soft:#5A6880;
+  --panel:#FFFFFF; --line:#C9D5E1; --good:#2B8A5E; --warn:#D08F00; --bad:#D22B40; --slow:#1E5BCC;
+  --tree:#2E5A45; --tree-hi:#477A5F; --jacket:#6B3FC4;
+  --scrim:rgba(243,247,250,.92);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --snow:#0E1828; --snow-shade:#1A2940; --ink:#E5EDF6; --ink-soft:#93A3BA;
+    --panel:#13213A; --line:#2A3C58; --good:#3FBF86; --warn:#F1B42F; --bad:#FF5C70; --slow:#5D8DFF;
+    --tree:#24493A; --tree-hi:#356A52; --jacket:#A687FF;
+    --scrim:rgba(14,24,40,.9);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --snow:#0E1828; --snow-shade:#1A2940; --ink:#E5EDF6; --ink-soft:#93A3BA;
+  --panel:#13213A; --line:#2A3C58; --good:#3FBF86; --warn:#F1B42F; --bad:#FF5C70; --slow:#5D8DFF;
+  --tree:#24493A; --tree-hi:#356A52; --jacket:#A687FF;
+  --scrim:rgba(14,24,40,.9);
+  color-scheme: dark;
+}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);}
+body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Barlow,"Helvetica Neue",Arial,sans-serif;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+.app{height:100%;max-width:520px;margin:0 auto;display:flex;flex-direction:column}
+.hud{display:grid;grid-template-columns:auto auto auto 1fr;gap:18px;align-items:end;padding:10px 16px 8px}
+.stat .k,.k{display:block;font-size:12px;color:var(--ink-soft);letter-spacing:.02em}
+.stat .v{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:26px;line-height:1;font-variant-numeric:tabular-nums}
+.progress .bar{height:10px;border-radius:5px;background:var(--snow-shade);overflow:hidden;margin-top:6px}
+.progress .bar i{display:block;height:100%;width:0;background:var(--ink-soft)}
+.stage{position:relative;flex:1;min-height:0}
+#slope{position:absolute;inset:0;width:100%;height:100%;display:block}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--scrim);overflow-y:auto}
+.overlay[hidden]{display:none}
+.card{max-width:360px}
+.card h1,.card h2{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;margin:0 0 6px;line-height:.95}
+.card h1{font-size:56px;letter-spacing:-.01em}
+.card h2{font-size:40px}
+.card p{margin:0 0 12px;line-height:1.45;font-size:16px}
+.card .src{font-size:13px;color:var(--ink-soft);border-left:3px solid var(--slow);padding-left:10px}
+.cause{font-size:19px!important;font-weight:600}
+.chips{display:flex;gap:8px;margin:14px 0 6px}
+.chip{flex:1;font:600 15px Barlow,sans-serif;padding:10px 0;border-radius:8px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+.chip[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.chip .dot{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:0}
+.dot.green{background:#2B8A5E;border-radius:50%}.dot.blue{background:#1E5BCC}.dot.black{background:var(--ink);transform:rotate(45deg) scale(.85)}
+.best{font-size:13px;color:var(--ink-soft);min-height:18px;margin-bottom:14px}
+.btn{display:block;width:100%;font:700 22px "Barlow Condensed",sans-serif;padding:12px;border-radius:10px;border:0;background:var(--ink);color:var(--snow);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);font:600 15px Barlow,sans-serif;padding:10px;margin-top:6px}
+.statsline{display:flex;gap:18px;margin:4px 0 16px}
+.statsline div{font-size:12px;color:var(--ink-soft)}
+.statsline b{display:block;font:700 26px "Barlow Condensed",sans-serif;color:var(--ink)}
+.controls{padding:8px 16px 14px;border-top:1px solid var(--line);background:var(--panel)}
+.speed-row{display:grid;grid-template-columns:auto 1fr 96px;gap:10px;align-items:center}
+.gauge{position:relative;height:12px;border-radius:6px;overflow:hidden;
+  background:linear-gradient(to right,var(--slow) 0 var(--lo),var(--good) var(--lo) var(--hi),var(--bad) var(--hi) 100%);opacity:.9}
+.gauge i{position:absolute;top:-2px;bottom:-2px;width:4px;margin-left:-2px;background:var(--ink);border-radius:2px;left:0}
+#speedWord{font:700 18px "Barlow Condensed",sans-serif;text-align:right}
+#trace{display:block;width:100%;height:64px;margin:10px 0 8px}
+.slider{position:relative;height:56px;touch-action:none;cursor:grab;outline:none;border-radius:12px}
+.slider:focus-visible{box-shadow:0 0 0 3px var(--slow)}
+.slider.active{cursor:grabbing}
+.track{position:absolute;left:22px;right:22px;top:50%;height:8px;margin-top:-4px;border-radius:4px;background:var(--snow-shade);--l:50%;--r:50%}
+.track .zones{position:absolute;inset:0;border-radius:4px;opacity:.35;
+  background:linear-gradient(to right,var(--slow) 0 var(--l),var(--bad) var(--l) var(--r),var(--slow) var(--r) 100%)}
+.track .notch{position:absolute;left:50%;top:-8px;bottom:-8px;width:2px;margin-left:-1px;background:var(--ink-soft)}
+.track .hold{position:absolute;top:-10px;bottom:-10px;width:4px;margin-left:-2px;border-radius:2px;background:var(--good)}
+.thumb{position:absolute;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:var(--panel);border:3px solid var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.18)}
+.thumb::after{content:"";position:absolute;left:50%;top:9px;bottom:9px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--ink);transform:rotate(var(--rot,0deg))}
+.slider-labels{display:flex;justify-content:space-between;font-size:13px;color:var(--ink-soft);padding:0 4px}
+#headVal{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="hud">
+    <div class="stat"><span class="k">Steady</span><span class="v" id="steady">–</span></div>
+    <div class="stat"><span class="k">km/h</span><span class="v" id="speed">0</span></div>
+    <div class="stat"><span class="k">Pitch</span><span class="v" id="pitch">–</span></div>
+    <div class="progress"><span class="k">Run</span><div class="bar"><i id="progFill"></i></div></div>
+  </header>
+
+  <div class="stage" id="stage">
+    <canvas id="slope" aria-label="Ski slope with skier and tracks"></canvas>
+    <div class="overlay" id="overlay"><div class="card" id="card"></div></div>
+  </div>
+
+  <section class="controls">
+    <div class="speed-row">
+      <span class="k">Speed</span>
+      <div class="gauge" id="gauge"><i id="needle"></i></div>
+      <span id="speedWord">–</span>
+    </div>
+    <canvas id="trace" aria-label="Speed over the last six seconds"></canvas>
+    <div class="slider" id="slider" tabindex="0" role="slider" aria-label="Ski direction" aria-valuemin="-90" aria-valuemax="90" aria-valuenow="0">
+      <div class="track" id="track">
+        <div class="zones"></div>
+        <span class="notch"></span>
+        <span class="hold" id="holdL"></span><span class="hold" id="holdR"></span>
+        <div class="thumb" id="thumb" style="left:50%"></div>
+      </div>
+    </div>
+    <div class="slider-labels"><span>Across</span><span id="headVal">Fall line</span><span>Across</span></div>
+  </section>
+</main>
+
+<script>
+(function(){
+const H_MAX = 90, TRAIL_W = 30, VIEW_W = 34;
+const ROT_RATE = 150;            // deg/s: how fast the skis rotate toward where the slider points
+const G = 9.81, MU = 0.05, DRAG = 0.006;
+const SKID = 2.5;                // m/s² of braking with the skis fully across the hill, scaled by sin²
+const FALL_X = 1.8;              // fall once speed passes this multiple of the target
+const TRAILS = {
+  // target and band in km/h; pitch is [distance down the fall line (m), slope (deg)]
+  green:{name:'Green', target:18, band:4, len:320, pitch:[[0,8],[70,12],[140,9],[200,14],[260,10]]},
+  blue: {name:'Blue',  target:24, band:4, len:320, pitch:[[0,13],[70,19],[130,14],[190,23],[250,16]]},
+  black:{name:'Black', target:30, band:5, len:320, pitch:[[0,18],[60,26],[120,20],[180,30],[240,22]]}
+};
+const WORDS = ['slow','steady','fast'];
+
+const $ = id => document.getElementById(id);
+const cv = $('slope'), ctx = cv.getContext('2d');
+const tc = $('trace'), tctx = tc.getContext('2d');
+const overlay = $('overlay'), card = $('card');
+const slider = $('slider'), track = $('track'), thumb = $('thumb'), gauge = $('gauge');
+
+let C = {};
+function readColors(){
+  const cs = getComputedStyle(document.documentElement);
+  ['snow','snow-shade','ink','ink-soft','panel','line','good','warn','bad','slow','tree','tree-hi','jacket']
+    .forEach(k => C[k] = cs.getPropertyValue('--'+k).trim());
+  C.zone = [C.slow, C.good, C.bad];
+}
+readColors();
+try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); }catch(e){}
+
+let W=0,H=0,DPR=1,ppm=10,TW=0,TH=0;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  const r = cv.getBoundingClientRect();
+  W = r.width; H = r.height;
+  cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+  ppm = W / VIEW_W;
+  const tr = tc.getBoundingClientRect();
+  TW = tr.width; TH = tr.height;
+  tc.width = Math.round(TW*DPR); tc.height = Math.round(TH*DPR);
+}
+window.addEventListener('resize', resize);
+
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+function hash(n){ const x = Math.sin(n*127.1+311.7)*43758.5453; return x - Math.floor(x); }
+
+// ---------- physics ----------
+// pitch eases from one section to the next over 20 m
+function pitchAt(T, y){
+  const P = T.pitch; let p = P[0][1];
+  for (let i=1;i<P.length;i++){
+    const u = clamp((y - P[i][0] + 10)/20, 0, 1);
+    p += (P[i][1] - P[i-1][1])*u*u*(3-2*u);
+  }
+  return p;
+}
+// h: ski direction from the fall line (rad). Gravity pulls along the skis by cos h;
+// turning them across the hill skids, which brakes by sin² h.
+function accel(v, h, pitch){
+  const sl = pitch*Math.PI/180, sh = Math.sin(h);
+  return G*Math.sin(sl)*Math.cos(h) - MU*G*Math.cos(sl) - SKID*sh*sh - DRAG*v*v;
+}
+// the ski direction (deg) that neither speeds you up nor slows you down, at this speed and pitch
+function holdAngle(v, pitch){
+  const sl = pitch*Math.PI/180, gs = G*Math.sin(sl), K = MU*G*Math.cos(sl) + SKID + DRAG*v*v;
+  const c = (-gs + Math.sqrt(gs*gs + 4*SKID*K))/(2*SKID);
+  return c >= 1 ? 0 : Math.acos(c)*180/Math.PI;
+}
+
+// ---------- state ----------
+let trailKey = 'blue';
+try{ const saved = localStorage.getItem('rotary.trail'); if (saved && TRAILS[saved]) trailKey = saved; }catch(e){}
+const input = { h:0, keyDir:0, fast:false };
+let s = null, mode = 'menu';
+
+function newRun(){
+  const T = TRAILS[trailKey];
+  input.h = 0;
+  s = { T, x:0, y:0, v:T.target/3.6*0.8, h:0, pitch:T.pitch[0][1], zone:1, hold:0,
+        tRun:0, tIn:0, tSlow:0, tFast:0, sumV:0, sumV2:0, stops:0, stopped:false, warned:{},
+        tracks:[], trace:[], flash:null, offCool:0, fallT:0, spin:0, cause:'', spray:[] };
+  s.hold = holdAngle(s.v, s.pitch);
+  const vMax = T.target*FALL_X;
+  gauge.style.setProperty('--lo', (T.target-T.band)/vMax*100+'%');
+  gauge.style.setProperty('--hi', (T.target+T.band)/vMax*100+'%');
+}
+
+// ---------- slider input ----------
+let drag = null;
+slider.addEventListener('pointerdown', e => {
+  slider.setPointerCapture(e.pointerId);
+  drag = { x:e.clientX, v:input.h };
+  slider.classList.add('active');
+  e.preventDefault();
+});
+slider.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const w = track.clientWidth || 1;
+  input.h = clamp(drag.v + (e.clientX - drag.x)/w * 2*H_MAX, -H_MAX, H_MAX);
+});
+const endDrag = () => { drag = null; slider.classList.remove('active'); };
+slider.addEventListener('pointerup', endDrag);
+slider.addEventListener('pointercancel', endDrag);
+
+window.addEventListener('keydown', e => {
+  if (e.key==='ArrowLeft' || e.key==='ArrowRight'){
+    input.keyDir = e.key==='ArrowLeft'? -1 : 1; input.fast = e.shiftKey; e.preventDefault();
+  } else if ((e.key===' '||e.key==='Enter') && mode!=='run'){
+    const b = card.querySelector('.btn'); if (b && document.activeElement.tagName!=='BUTTON'){ b.click(); e.preventDefault(); }
+  }
+});
+window.addEventListener('keyup', e => {
+  if (e.key==='ArrowLeft' && input.keyDir===-1) input.keyDir = 0;
+  if (e.key==='ArrowRight' && input.keyDir===1) input.keyDir = 0;
+  if (e.key==='Shift') input.fast = false;
+});
+
+// ---------- simulation ----------
+function step(dt){
+  const T = s.T;
+  if (input.keyDir) input.h = clamp(input.h + input.keyDir*(input.fast? 240:90)*dt, -H_MAX, H_MAX);
+  const maxd = ROT_RATE*Math.PI/180*dt;
+  s.h += clamp(input.h*Math.PI/180 - s.h, -maxd, maxd);
+
+  s.pitch = pitchAt(T, s.y);
+  s.v = Math.max(0, s.v + accel(s.v, s.h, s.pitch)*dt);
+  s.hold = holdAngle(s.v, s.pitch);
+  const kmh = s.v*3.6;
+
+  if (kmh > T.target*FALL_X){
+    s.cause = `Too fast: ${Math.round(kmh)} km/h. The skis stayed pointed down the hill too long.`;
+    mode = 'fall'; s.fallT = 0; s.spin = (Math.random()<.5?-1:1)*(4+Math.random()*3);
+    for (let i=0;i<26;i++) s.spray.push({x:s.x, y:s.y, vx:(Math.random()-.5)*6 + s.v*Math.sin(s.h)*.5, vy:Math.random()*4 + s.v*Math.cos(s.h)*.5, life:1});
+    return;
+  }
+
+  s.x += s.v*Math.sin(s.h)*dt;
+  s.y += s.v*Math.cos(s.h)*dt;
+
+  // trail boundary
+  s.offCool -= dt;
+  const lim = TRAIL_W/2 - 0.6;
+  if (Math.abs(s.x) > lim){
+    s.x = Math.sign(s.x)*lim;
+    if (s.offCool <= 0){ s.v *= 0.75; s.offCool = 1; s.flash = {text:'Off the trail', t:1.2, c:C.warn}; }
+  }
+
+  // stopping
+  if (s.v < 0.15){
+    if (!s.stopped){ s.stopped = true; s.stops++; s.flash = {text:'Stopped', t:1.4, c:C.slow}; }
+  } else if (s.v > 1) s.stopped = false;
+  if (s.stopped && !s.flash) s.flash = {text:'Turn the skis toward the fall line', t:1, c:C.slow};
+
+  // speed band
+  const zone = kmh < T.target - T.band ? 0 : kmh > T.target + T.band ? 2 : 1;
+  s.zone = zone;
+  s.tRun += dt; s.sumV += kmh*dt; s.sumV2 += kmh*kmh*dt;
+  if (zone===0) s.tSlow += dt; else if (zone===1) s.tIn += dt; else s.tFast += dt;
+
+  // skidding throws snow toward the fall line
+  const skid = SKID*Math.sin(s.h)**2*Math.min(1, s.v/3);
+  if (skid > 0.8 && Math.random() < skid*dt*14)
+    s.spray.push({x:s.x + (Math.random()-.5)*1.2, y:s.y + 0.4, vx:s.v*Math.sin(s.h)*.6 + (Math.random()-.5)*2, vy:1.5 + Math.random()*2 + s.v*Math.cos(s.h)*.5, life:.6});
+  s.spray.forEach(p => { p.x += p.vx*dt; p.y += p.vy*dt; p.vx *= .94; p.vy *= .94; p.life -= dt*1.4; });
+  s.spray = s.spray.filter(p => p.life > 0);
+
+  // a change of pitch is announced 30 m before it arrives
+  const P = T.pitch;
+  for (let i=1;i<P.length;i++){
+    const d = P[i][0] - s.y;
+    if (d > 0 && d < 30 && !s.warned[i]){
+      s.warned[i] = 1;
+      const up = P[i][1] > P[i-1][1];
+      s.flash = {text: up ? 'Steeper ahead' : 'Flatter ahead', t:1.8, c: up ? C.warn : C.slow};
+    }
+  }
+
+  if (s.y >= T.len){ mode = 'done'; return; }
+
+  const last = s.tracks[s.tracks.length-1];
+  if (!last || Math.hypot(s.x-last.x, s.y-last.y) > 0.25) s.tracks.push({x:s.x, y:s.y, h:s.h, z:zone});
+  while (s.tracks.length && s.y - s.tracks[0].y > 70) s.tracks.shift();
+  s.trace.push({t:s.tRun, v:kmh, z:zone});
+  while (s.trace.length && s.tRun - s.trace[0].t > 6) s.trace.shift();
+  if (s.flash){ s.flash.t -= dt; if (s.flash.t<=0) s.flash = null; }
+}
+
+function stepFall(dt){
+  s.fallT += dt;
+  s.v *= Math.exp(-2.6*dt);
+  s.x += s.v*Math.sin(s.h)*dt; s.y += s.v*Math.cos(s.h)*dt;
+  s.x = clamp(s.x, -TRAIL_W/2+0.6, TRAIL_W/2-0.6);
+  s.spin *= Math.exp(-2*dt);
+  s.h += s.spin*dt*0.3;
+  s.spray.forEach(p => { p.x += p.vx*dt; p.y += p.vy*dt; p.vx *= .94; p.vy *= .94; p.life -= dt*0.9; });
+  if (s.fallT > 1.3 && mode==='fall'){ mode = 'fallen'; showFall(); }
+}
+
+// ---------- drawing ----------
+const skierSY = () => H*0.7;
+const toS = (x,y) => [W/2 + x*ppm, skierSY() - (y - s.y)*ppm];
+
+function draw(){
+  const T = s.T;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.fillStyle = C.snow; ctx.fillRect(0,0,W,H);
+  const yTop = s.y + skierSY()/ppm, yBot = s.y - (H - skierSY())/ppm;
+  const edgeL = W/2 - TRAIL_W/2*ppm, edgeR = W/2 + TRAIL_W/2*ppm;
+
+  // steeper ground is shaded darker
+  ctx.fillStyle = C.ink;
+  for (let y = Math.floor(yBot/2)*2; y <= yTop; y += 2){
+    ctx.globalAlpha = clamp((pitchAt(T, y) - 6)/26, 0, 1)*0.11;
+    const [, sy] = toS(0, y + 2);
+    ctx.fillRect(edgeL, sy, edgeR-edgeL, 2*ppm + 1);
+  }
+  ctx.globalAlpha = 1;
+
+  // corduroy along the fall line
+  ctx.strokeStyle = C['snow-shade']; ctx.globalAlpha = .55; ctx.lineWidth = 1;
+  for (let x = -TRAIL_W/2; x <= TRAIL_W/2; x += 0.9){
+    const sx = Math.round(W/2 + x*ppm)+.5; ctx.beginPath(); ctx.moveTo(sx,0); ctx.lineTo(sx,H); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  // snow texture that scrolls (speed cue)
+  ctx.fillStyle = C['snow-shade'];
+  for (let row = Math.floor(yBot/2.5); row <= Math.ceil(yTop/2.5); row++){
+    for (let k=0;k<3;k++){
+      const wx = (hash(row*3.1+k*17.7)-.5)*TRAIL_W, wy = row*2.5 + hash(row*9.2+k)*2.5;
+      const [sx,sy] = toS(wx,wy); ctx.fillRect(sx,sy,2,2);
+    }
+  }
+  // tree lines
+  ctx.fillStyle = C['snow-shade']; ctx.fillRect(0,0,edgeL,H); ctx.fillRect(edgeR,0,W-edgeR,H);
+  for (let row = Math.floor(yBot/3)-1; row <= Math.ceil(yTop/3)+1; row++){
+    for (const side of [-1,1]){
+      const wx = side*(TRAIL_W/2 + 0.8 + hash(row*5.3+side)*1.8), wy = row*3 + hash(row*2.1+side*4)*2;
+      const [sx,sy] = toS(wx,wy), rad = (0.9+hash(row+side*9)*0.7)*ppm;
+      ctx.fillStyle = C.tree; ctx.beginPath(); ctx.arc(sx,sy,rad,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = C['tree-hi']; ctx.beginPath(); ctx.arc(sx-rad*.2,sy-rad*.2,rad*.45,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  // pitch signs where the slope changes
+  ctx.font = '700 15px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const [y0, p] of T.pitch){
+    if (y0 < yBot-3 || y0 > yTop+3) continue;
+    const [sx, sy] = toS(-TRAIL_W/2 + 1.8, y0);
+    ctx.fillStyle = C.panel; ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5;
+    roundRect(sx-18, sy-11, 36, 22, 5); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = C.ink; ctx.fillText(p+'°', sx, sy+1);
+  }
+  ctx.textBaseline = 'alphabetic';
+
+  // finish line
+  if (T.len < yTop + 2){
+    const [, fy] = toS(0, T.len);
+    const sq = 10, n = Math.ceil((edgeR-edgeL)/sq);
+    for (let i=0;i<n;i++) for (let k=0;k<2;k++){
+      ctx.fillStyle = (i+k)%2 ? C.ink : C.panel; ctx.fillRect(edgeL+i*sq, fy - k*sq, sq, sq);
+    }
+  }
+
+  // tracks, colored by speed
+  ctx.lineCap = 'round'; ctx.lineWidth = Math.max(1.5, ppm*0.11);
+  for (const side of [-1,1]){
+    for (let i=1;i<s.tracks.length;i++){
+      const a = s.tracks[i-1], b = s.tracks[i];
+      const ox = (h)=> Math.cos(h)*0.17*side, oy = (h)=> -Math.sin(h)*0.17*side;
+      const [x1,y1] = toS(a.x+ox(a.h), a.y+oy(a.h)), [x2,y2] = toS(b.x+ox(b.h), b.y+oy(b.h));
+      ctx.strokeStyle = C.zone[b.z]; ctx.globalAlpha = .85;
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  for (const p of s.spray){ if (p.life<=0) continue; const [px,py]=toS(p.x,p.y); ctx.globalAlpha=Math.min(1,p.life); ctx.fillStyle=C['ink-soft']; ctx.beginPath(); ctx.arc(px,py,2.2,0,Math.PI*2); ctx.fill(); }
+  ctx.globalAlpha = 1;
+
+  drawFan();
+  drawSkier();
+
+  if (s.flash){
+    ctx.globalAlpha = Math.min(1, s.flash.t*2);
+    ctx.font = '700 22px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = s.flash.c; ctx.fillText(s.flash.text, W/2, 34);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// around the skier: directions that speed you up (warm) or slow you down (cool), split by the hold direction
+function drawFan(){
+  if (mode!=='run') return;
+  const [sx,sy] = toS(s.x, s.y), R = 3.4*ppm, h0 = s.hold*Math.PI/180;
+  ctx.save(); ctx.translate(sx,sy);
+  const seg = (a,b,col) => { if (b <= a) return; ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,R,a-Math.PI/2,b-Math.PI/2); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); };
+  ctx.globalAlpha = .16; seg(-Math.PI/2,-h0,C.slow); seg(-h0,h0,C.bad); seg(h0,Math.PI/2,C.slow);
+  ctx.globalAlpha = 1; ctx.strokeStyle = C.good; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  for (const a of [-h0,h0]){ ctx.beginPath(); ctx.moveTo(Math.sin(a)*R*.5, -Math.cos(a)*R*.5); ctx.lineTo(Math.sin(a)*R, -Math.cos(a)*R); ctx.stroke(); }
+  ctx.strokeStyle = C['ink-soft']; ctx.lineWidth = 1.5; ctx.setLineDash([3,4]);
+  ctx.beginPath(); ctx.moveTo(0,-R*.5); ctx.lineTo(0,-R*1.2); ctx.stroke(); ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawSkier(){
+  const [sx,sy] = toS(s.x, s.y);
+  const k = ppm*1.35;               // drawn a touch larger than life for readability
+  ctx.save(); ctx.translate(sx,sy); ctx.rotate(s.h);
+  if (mode!=='run' && mode!=='menu') ctx.rotate(s.fallT*s.spin*0.4);
+  const skiW = Math.max(2.5, k*0.11 + 1.2);
+  ctx.fillStyle = C.ink;
+  for (const side of [-1,1]){
+    const fallSplay = mode==='run'||mode==='menu' ? 0 : side*Math.min(.6,s.fallT)*0.5;
+    ctx.save(); ctx.translate(side*0.17*k, 0); ctx.rotate(fallSplay);
+    roundRect(-skiW/2, -0.95*k, skiW, 1.7*k, skiW/2); ctx.fill();
+    ctx.restore();
+  }
+  ctx.fillStyle = C.jacket;
+  ctx.beginPath(); ctx.ellipse(0, 0.05*k, 0.3*k, 0.19*k, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = C.ink;
+  ctx.beginPath(); ctx.arc(0, -0.02*k, 0.13*k, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+function drawTrace(){
+  tctx.setTransform(DPR,0,0,DPR,0,0);
+  tctx.clearRect(0,0,TW,TH);
+  if (!s) return;
+  const T = s.T, pad = 4, vMax = T.target*FALL_X, x0 = 34;
+  const yOf = v => TH - pad - clamp(v/vMax, 0, 1)*(TH - 2*pad);
+  tctx.fillStyle = C.good; tctx.globalAlpha = .14;
+  tctx.fillRect(x0, yOf(T.target+T.band), TW-x0, yOf(T.target-T.band) - yOf(T.target+T.band));
+  tctx.globalAlpha = 1;
+  tctx.strokeStyle = C.line; tctx.lineWidth = 1; tctx.setLineDash([3,4]);
+  tctx.beginPath(); tctx.moveTo(x0, yOf(T.target)+.5); tctx.lineTo(TW, yOf(T.target)+.5); tctx.stroke(); tctx.setLineDash([]);
+  tctx.font = '500 11px Barlow, sans-serif'; tctx.fillStyle = C['ink-soft']; tctx.textAlign = 'left';
+  tctx.fillText('fast', 2, 11); tctx.fillText(T.target+'', 2, yOf(T.target)+4); tctx.fillText('slow', 2, TH-3);
+  if (s.trace.length < 2) return;
+  const tEnd = s.tRun;
+  tctx.lineWidth = 2.5; tctx.lineCap = 'round';
+  for (let i=1;i<s.trace.length;i++){
+    const a = s.trace[i-1], b = s.trace[i];
+    const xa = x0 + (1 - (tEnd-a.t)/6)*(TW-x0), xb = x0 + (1 - (tEnd-b.t)/6)*(TW-x0);
+    tctx.strokeStyle = C.zone[b.z];
+    tctx.beginPath(); tctx.moveTo(xa, yOf(a.v)); tctx.lineTo(xb, yOf(b.v)); tctx.stroke();
+  }
+}
+
+function updateUI(){
+  const T = s.T, kmh = s.v*3.6;
+  $('steady').textContent = s.tRun > 0.5 ? Math.round(s.tIn/s.tRun*100)+'%' : '–';
+  $('speed').textContent = Math.round(kmh);
+  $('pitch').textContent = Math.round(s.pitch)+'°';
+  $('progFill').style.width = clamp(s.y/T.len, 0, 1)*100+'%';
+  $('needle').style.left = Math.min(100, kmh/(T.target*FALL_X)*100)+'%';
+  const sw = $('speedWord');
+  sw.textContent = s.stopped ? 'stopped' : WORDS[s.zone]; sw.style.color = C.zone[s.zone];
+  const pct = (input.h + H_MAX)/(2*H_MAX)*100;
+  thumb.style.left = pct+'%';
+  thumb.style.setProperty('--rot', (s.h*180/Math.PI)+'deg');
+  const hp = s.hold/H_MAX*50;
+  track.style.setProperty('--l', (50-hp)+'%'); track.style.setProperty('--r', (50+hp)+'%');
+  $('holdL').style.left = (50-hp)+'%'; $('holdR').style.left = (50+hp)+'%';
+  const a = Math.round(Math.abs(input.h));
+  $('headVal').textContent = a < 3 ? 'Fall line' : a+'° '+(input.h<0?'left':'right');
+  slider.setAttribute('aria-valuenow', Math.round(input.h));
+}
+
+// ---------- screens ----------
+function bestText(){
+  try{
+    const b = JSON.parse(localStorage.getItem('rotary.best.'+trailKey) || 'null');
+    return b ? `Best on ${TRAILS[trailKey].name}: ${b.steady}% steady` : '';
+  }catch(e){ return ''; }
+}
+function saveBest(steady){
+  try{
+    const key = 'rotary.best.'+trailKey;
+    const b = JSON.parse(localStorage.getItem(key) || 'null');
+    if (!b || steady > b.steady){ localStorage.setItem(key, JSON.stringify({steady})); return true; }
+  }catch(e){}
+  return false;
+}
+function chipsHTML(){
+  return '<div class="chips" role="group" aria-label="Trail">' + Object.entries(TRAILS).map(([k,t]) =>
+    `<button class="chip" data-k="${k}" aria-pressed="${k===trailKey}"><span class="dot ${k}"></span>${t.name}</button>`).join('') + '</div>';
+}
+function wireChips(){
+  card.querySelectorAll('.chip').forEach(b => b.onclick = () => {
+    trailKey = b.dataset.k; try{ localStorage.setItem('rotary.trail', trailKey); }catch(e){}
+    card.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', c===b));
+    const be = card.querySelector('.best'); if (be) be.textContent = bestText();
+    const tg = card.querySelector('.target'); if (tg) tg.textContent = targetText();
+    newRun();
+  });
+}
+const targetText = () => { const T = TRAILS[trailKey]; return `Hold ${T.target-T.band}–${T.target+T.band} km/h`; };
+function showMenu(){
+  mode = 'menu'; newRun();
+  card.innerHTML = `
+    <h1>Rotary</h1>
+    <p class="src">Turn shape controls speed.</p>
+    <p>Drag the slider to turn your skis. Point them down the hill and you speed up. Turn them across the hill and you slow down, and eventually stop.</p>
+    <p style="font-size:14px;color:var(--ink-soft)">The pitch changes as you go, so one turn shape won’t hold your speed. The green marks show the ski direction that holds it right now: inside them you speed up, outside them you slow down.</p>
+    ${chipsHTML()}
+    <div class="best"><b class="target" style="color:var(--ink)">${targetText()}</b><br>${bestText()}</div>
+    <button class="btn" id="go">Start run</button>`;
+  wireChips();
+  $('go').onclick = start;
+  overlay.hidden = false;
+}
+function start(){ newRun(); overlay.hidden = true; mode = 'run'; slider.focus({preventScroll:true}); last = performance.now(); }
+function results(title, lead){
+  const steady = s.tRun > 0 ? Math.round(s.tIn/s.tRun*100) : 0;
+  const mean = s.tRun > 0 ? s.sumV/s.tRun : 0;
+  const sd = s.tRun > 0 ? Math.sqrt(Math.max(0, s.sumV2/s.tRun - mean*mean)) : 0;
+  const rec = mode==='done' && saveBest(steady);
+  card.innerHTML = `
+    <h2>${title}</h2>
+    ${lead}
+    <div class="statsline">
+      <div><b>${steady}%</b>steady</div>
+      <div><b>${Math.round(mean)}</b>avg km/h</div>
+      <div><b>±${Math.round(sd)}</b>km/h spread</div>
+    </div>
+    <div class="best">${rec ? 'New best on '+s.T.name : bestText()}</div>
+    <button class="btn" id="again">Ski again</button>
+    <button class="btn ghost" id="menu">Change trail</button>`;
+  $('again').onclick = start; $('menu').onclick = showMenu;
+  overlay.hidden = false;
+}
+function showFall(){
+  results('Fell', `<p class="cause">${s.cause}</p><p>Finish each turn further across the hill to check your speed, especially where it steepens.</p>`);
+}
+function showDone(){
+  const steady = s.tRun > 0 ? s.tIn/s.tRun : 0;
+  let lead;
+  if (steady >= 0.8) lead = 'Steady speed all the way down. Turn shape did the speed control.';
+  else if (s.stops) lead = `Stopped ${s.stops===1 ? 'once' : s.stops+' times'}. The skis stayed across the hill too long. Turn them back toward the fall line sooner.`;
+  else if (s.tFast > s.tSlow) lead = 'Mostly too fast. Finish each turn further across the hill, especially where it steepens.';
+  else lead = 'Mostly too slow. Let the skis point further down the hill before turning them across.';
+  results('Run complete', `<p>${lead}</p>`);
+}
+
+// ---------- loop ----------
+let last = performance.now();
+function frame(now){
+  let dt = (now - last)/1000; last = now;
+  dt = clamp(dt, 0, 1/30);
+  if (mode==='run'){ step(dt); if (mode==='done') showDone(); }
+  else if (mode==='fall' || mode==='fallen') stepFall(dt);
+  draw(); drawTrace(); updateUI();
+  requestAnimationFrame(frame);
+}
+resize();
+showMenu();
+requestAnimationFrame(t => { last = t; frame(t); });
+})();
+</script>
+</body>
+</html>

@@ -46,6 +46,8 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
 .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--scrim);overflow-y:auto}
 .overlay[hidden]{display:none}
 .card{max-width:360px}
+.back{display:inline-block;margin:0 0 10px;padding:6px 0;font:600 14px Barlow,sans-serif;color:var(--ink-soft);text-decoration:none}
+.back:hover,.back:focus-visible{color:var(--ink);text-decoration:underline}
 .card h1,.card h2{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;margin:0 0 6px;line-height:.95}
 .card h1{font-size:56px;letter-spacing:-.01em}
 .card h2{font-size:40px}
@@ -561,6 +563,7 @@ const targetText = () => { const T = TRAILS[trailKey]; return `Hold ${T.target-T
 function showMenu(){
   mode = 'menu'; newRun();
   card.innerHTML = `
+    <a class="back" href="../">← All games</a>
     <h1>Rotary</h1>
     <p class="src">Turn shape controls speed.</p>
     <p>Grab the wheel and turn it to turn your skis. Point them down the hill and you speed up. Turn them across the hill and you slow down, and eventually stop.</p>
@@ -579,6 +582,7 @@ function results(title, lead){
   const sd = s.tRun > 0 ? Math.sqrt(Math.max(0, s.sumV2/s.tRun - mean*mean)) : 0;
   const rec = mode==='done' && saveBest(steady);
   card.innerHTML = `
+    <a class="back" href="../">← All games</a>
     <h2>${title}</h2>
     ${lead}
     <div class="statsline">

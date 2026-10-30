@@ -46,6 +46,8 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
 .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--scrim)}
 .overlay[hidden]{display:none}
 .card{max-width:360px}
+.back{display:inline-block;margin:0 0 10px;padding:6px 0;font:600 14px Barlow,sans-serif;color:var(--ink-soft);text-decoration:none}
+.back:hover,.back:focus-visible{color:var(--ink);text-decoration:underline}
 .card h1,.card h2{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;margin:0 0 6px;line-height:.95}
 .card h1{font-size:56px;letter-spacing:-.01em}
 .card h2{font-size:40px}
@@ -496,6 +498,7 @@ function wireChips(){
 function showMenu(){
   mode = 'menu'; newRun();
   card.innerHTML = `
+    <a class="back" href="../">← All games</a>
     <h1>Edge rate</h1>
     <p class="src">Rate is the speed at which movement occurs. <br>ATM, Chapter 6</p>
     <p>Drag the slider to tip your skis on edge and link turns through the gates. Increase and decrease edge angle progressively. Move it abruptly and you’ll fall.</p>
@@ -512,6 +515,7 @@ function results(title, lead){
   const prog = s.tRun > 0 ? Math.round(s.tProg/s.tRun*100) : 0;
   const rec = saveBest(s.passed, prog);
   card.innerHTML = `
+    <a class="back" href="../">← All games</a>
     <h2>${title}</h2>
     ${lead}
     <div class="statsline">

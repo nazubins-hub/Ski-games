@@ -189,7 +189,7 @@ let s = null, mode = 'menu';
 function newRun(){
   const T = TRAILS[trailKey];
   input.h = 0;
-  s = { T, x:0, y:0, v:T.target/3.6*0.8, h:0, pitch:T.pitch[0][1], zone:1, hold:0,
+  s = { T, x:0, y:0, v:T.target/3.6, h:0, pitch:T.pitch[0][1], zone:1, hold:0,
         tRun:0, tIn:0, tSlow:0, tFast:0, sumV:0, sumV2:0, stops:0, stopped:false, warned:{},
         tracks:[], trace:[], flash:null, offCool:0, fallT:0, spin:0, cause:'', spray:[] };
   s.hold = holdAngle(s.v, s.pitch);
@@ -206,24 +206,25 @@ function pointerAngle(e){
   return { a: Math.atan2(dx, -dy)*180/Math.PI, d: Math.hypot(dx, dy) };
 }
 wc.addEventListener('pointerdown', e => {
-  if (mode==='paused') return;
+  if (mode==='paused' || drag) return;    // one hand turns the wheel: a second finger would make it jump
   wc.setPointerCapture(e.pointerId);
-  drag = pointerAngle(e);
+  drag = { ...pointerAngle(e), id:e.pointerId };
   wc.classList.add('active');
   e.preventDefault();
 });
 wc.addEventListener('pointermove', e => {
-  if (!drag) return;
+  if (!drag || e.pointerId !== drag.id) return;
   const p = pointerAngle(e);
   if (p.d > 14 && drag.d > 14){          // too close to the hub, the angle is noise
     let da = p.a - drag.a; da -= 360*Math.round(da/360);
     input.h = clamp(input.h + da, -H_MAX, H_MAX);
   }
-  drag = p;
+  drag = { ...p, id:drag.id };
 });
-const endDrag = () => { drag = null; wc.classList.remove('active'); };
+const endDrag = e => { if (e && drag && e.pointerId !== drag.id) return; drag = null; wc.classList.remove('active'); };
 wc.addEventListener('pointerup', endDrag);
 wc.addEventListener('pointercancel', endDrag);
+wc.addEventListener('lostpointercapture', endDrag);
 
 window.addEventListener('keydown', e => {
   if ((e.key==='Escape' || e.key==='p' || e.key==='P') && (mode==='run' || mode==='paused')){
@@ -232,8 +233,10 @@ window.addEventListener('keydown', e => {
   if (mode==='paused' && (e.key==='ArrowLeft' || e.key==='ArrowRight')) return;
   if (e.key==='ArrowLeft' || e.key==='ArrowRight'){
     input.keyDir = e.key==='ArrowLeft'? -1 : 1; input.fast = e.shiftKey; e.preventDefault();
-  } else if ((e.key===' '||e.key==='Enter') && mode!=='run'){
-    const b = card.querySelector('.btn'); if (b && document.activeElement.tagName!=='BUTTON'){ b.click(); e.preventDefault(); }
+  } else if ((e.key===' '||e.key==='Enter') && !overlay.hidden){
+    // the card may still hold an earlier screen's buttons while hidden (during a fall), so only a visible one counts
+    const b = card.querySelector('.btn'), ae = document.activeElement;
+    if (b && !(ae && ae.closest && ae.closest('button, a'))){ b.click(); e.preventDefault(); }
   }
 });
 window.addEventListener('keyup', e => {
@@ -641,9 +644,12 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
 let last = performance.now();
 function frame(now){
   let dt = (now - last)/1000; last = now;
+  // a frame stamped at or before the last one (a start or resume lands mid-frame) moves nothing
   dt = clamp(dt, 0, 1/30);
-  if (mode==='run'){ step(dt); if (mode==='done') showDone(); }
-  else if (mode==='fall' || mode==='fallen') stepFall(dt);
+  if (dt > 0){
+    if (mode==='run'){ step(dt); if (mode==='done') showDone(); }
+    else if (mode==='fall' || mode==='fallen') stepFall(dt);
+  }
   draw(); drawTrace(); drawWheel(); updateUI();
   requestAnimationFrame(frame);
 }

@@ -177,7 +177,7 @@ function newRun(){
   input.edge = 0;
   s = { T, x:course.startX, y:0, v:5, h:0, edge:0, prevEdge:0, rate:0, rateFast:0, jerk:0, bal:100,
         gates, gi:0, passed:0, finishY: gates[GATE_COUNT-1].y + 25,
-        tRun:0, tProg:0, peak:0, tracks:[], trace:[], flash:null, offCool:0,
+        tRun:0, tProg:0, peak:0, tracks:[], trace:[], flash:null, offCool:0, edgeHitT:-1, fallWord:'',
         fallT:0, spin:0, cause:'', spray:[] };
   $('ratebar').style.setProperty('--t1', (T.t1/(T.t2*1.5)*100)+'%');
   $('ratebar').style.setProperty('--t2', (100/1.5)+'%');
@@ -217,20 +217,21 @@ const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
 // ---------- slider input ----------
 let drag = null;
 slider.addEventListener('pointerdown', e => {
-  if (mode==='paused') return;
+  if (mode==='paused' || drag) return;    // one finger steers: a second one would make the slider jump
   slider.setPointerCapture(e.pointerId);
-  drag = { x:e.clientX, v:input.edge };
+  drag = { id:e.pointerId, x:e.clientX, v:input.edge };
   slider.classList.add('active');
   e.preventDefault();
 });
 slider.addEventListener('pointermove', e => {
-  if (!drag) return;
+  if (!drag || e.pointerId !== drag.id) return;
   const w = track.clientWidth || 1;
   input.edge = clamp(drag.v + (e.clientX - drag.x)/w * 2*EDGE_MAX, -EDGE_MAX, EDGE_MAX);
 });
-const endDrag = () => { drag = null; slider.classList.remove('active'); };
+const endDrag = e => { if (e && drag && e.pointerId !== drag.id) return; drag = null; slider.classList.remove('active'); };
 slider.addEventListener('pointerup', endDrag);
 slider.addEventListener('pointercancel', endDrag);
+slider.addEventListener('lostpointercapture', endDrag);
 
 window.addEventListener('keydown', e => {
   if ((e.key==='Escape' || e.key==='p' || e.key==='P') && (mode==='run' || mode==='paused')){
@@ -239,8 +240,10 @@ window.addEventListener('keydown', e => {
   if (mode==='paused' && (e.key==='ArrowLeft' || e.key==='ArrowRight')) return;
   if (e.key==='ArrowLeft' || e.key==='ArrowRight'){
     input.keyDir = e.key==='ArrowLeft'? -1 : 1; input.fast = e.shiftKey; e.preventDefault();
-  } else if ((e.key===' '||e.key==='Enter') && mode!=='run'){
-    const b = card.querySelector('.btn'); if (b && document.activeElement.tagName!=='BUTTON'){ b.click(); e.preventDefault(); }
+  } else if ((e.key===' '||e.key==='Enter') && !overlay.hidden){
+    // the card may still hold an earlier screen's buttons while hidden (during a fall), so only a visible one counts
+    const b = card.querySelector('.btn'), ae = document.activeElement;
+    if (b && !(ae && ae.closest && ae.closest('button, a'))){ b.click(); e.preventDefault(); }
   }
 });
 window.addEventListener('keyup', e => {
@@ -251,6 +254,7 @@ window.addEventListener('keyup', e => {
 
 // ---------- simulation ----------
 function step(dt){
+  if (!(dt > 0)) return;              // the rate divides by dt
   const T = s.T;
   if (input.keyDir) input.edge = clamp(input.edge + input.keyDir*(input.fast? 220:45)*dt, -EDGE_MAX, EDGE_MAX);
   s.edge = input.edge;
@@ -280,9 +284,16 @@ function step(dt){
   const rf = Math.abs(s.rateFast);
   if (s.bal <= 0 || r > T.t2*1.5 || rf > T.t2*1.5){
     s.peak = Math.max(s.peak, rf);
-    const increasing = Math.sign(rf > r ? s.rateFast : s.rate)===Math.sign(s.edge) && Math.abs(s.edge) > 3;
-    if (Math.max(r, rf) < T.t1) s.cause = 'Edging movement started and stopped abruptly.';
-    else s.cause = increasing ? 'Edge angle increased abruptly.' : 'Edges flattened abruptly. Skis slip.';
+    const rm = Math.max(r, rf), increasing = Math.sign(rf > r ? s.rateFast : s.rate)===Math.sign(s.edge) && Math.abs(s.edge) > 3;
+    if (rm < T.t2*1.5 && s.edgeHitT >= 0 && s.tRun - s.edgeHitT < 0.25){
+      s.fallWord = ''; s.cause = 'Ran into the edge of the trail with too little balance left.';
+    } else if (rm < T.t1){
+      s.fallWord = 'abruptly'; s.cause = 'Edging movement started and stopped abruptly.';
+    } else if (rm < T.t2){             // amber: quick for too long drains balance, but it is not abrupt
+      s.fallWord = 'quickly'; s.cause = increasing ? 'Edge angle increased quickly for too long.' : 'Edges flattened quickly for too long. Skis slip.';
+    } else {
+      s.fallWord = 'abruptly'; s.cause = increasing ? 'Edge angle increased abruptly.' : 'Edges flattened abruptly. Skis slip.';
+    }
     s.bal = 0; mode = 'fall'; s.fallT = 0; s.spin = (Math.random()<.5?-1:1)*(4+Math.random()*3);
     for (let i=0;i<26;i++) s.spray.push({x:s.x, y:s.y, vx:(Math.random()-.5)*6 + s.v*Math.sin(s.h)*.5, vy:Math.random()*4 + s.v*Math.cos(s.h)*.5, life:1});
     return;
@@ -296,7 +307,7 @@ function step(dt){
   const lim = TRAIL_W/2 - 0.6;
   if (Math.abs(s.x) > lim){
     s.x = Math.sign(s.x)*lim; s.h *= 0.3;
-    if (s.offCool <= 0){ s.v *= 0.7; s.bal -= 15; s.offCool = 1; s.flash = {text:'Off the trail', t:1.2, c:C.warn}; }
+    if (s.offCool <= 0){ s.v *= 0.7; s.bal -= 15; s.offCool = 1; s.edgeHitT = s.tRun; s.flash = {text:'Off the trail', t:1.2, c:C.warn}; }
   }
 
   // gates
@@ -539,7 +550,9 @@ function results(title, lead){
   overlay.hidden = false;
 }
 function showFall(){
-  results('Fell', `<p class="cause">${s.cause}</p><p>Rate: abruptly. Aim to edge progressively, especially through the edge change.</p>`);
+  const advice = s.fallWord ? `Rate: ${s.fallWord}. Aim to edge progressively, especially through the edge change.`
+                            : 'Start the next edge change sooner so the turn finishes on the trail, and edge progressively to keep balance in reserve.';
+  results('Fell', `<p class="cause">${s.cause}</p><p>${advice}</p>`);
 }
 function showDone(){
   const lead = s.passed===GATE_COUNT ? '<p>Clean run. Edge release flowed into edge engagement.</p>' : '<p>Made it down. Missed gates usually mean the edge change came late, not that it needs to come faster.</p>';
@@ -569,9 +582,13 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
 let last = performance.now();
 function frame(now){
   let dt = (now - last)/1000; last = now;
-  dt = Math.min(dt, 1/30);
-  if (mode==='run'){ step(dt); if (mode==='done') showDone(); }
-  else if (mode==='fall' || mode==='fallen') stepFall(dt);
+  // a frame stamped at or before the last one (a start or resume lands mid-frame) moves nothing:
+  // a zero dt would divide by zero in the rate and leave it NaN for the rest of the run
+  dt = clamp(dt, 0, 1/30);
+  if (dt > 0){
+    if (mode==='run'){ step(dt); if (mode==='done') showDone(); }
+    else if (mode==='fall' || mode==='fallen') stepFall(dt);
+  }
   draw(); drawTrace(); updateUI();
   requestAnimationFrame(frame);
 }

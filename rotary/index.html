@@ -113,10 +113,12 @@ const G = 9.81, MU = 0.05, DRAG = 0.006;
 const SKID = 2.5;                // m/s² of braking with the skis fully across the hill, scaled by sin²
 const FALL_X = 1.8;              // fall once speed passes this multiple of the target
 const TRAILS = {
-  // target and band in km/h; pitch is [distance down the fall line (m), slope (deg)]
-  green:{name:'Green', target:18, band:4, len:320, pitch:[[0,8],[70,12],[140,9],[200,14],[260,10]]},
-  blue: {name:'Blue',  target:24, band:4, len:320, pitch:[[0,13],[70,19],[130,14],[190,23],[250,16]]},
-  black:{name:'Black', target:30, band:5, len:320, pitch:[[0,18],[60,26],[120,20],[180,30],[240,22]]}
+  // target and band in km/h; pitch is [distance down the fall line (m), slope (deg)].
+  // uphillSkid: speed lost per radian the skis turn while pointing up the hill (kept: e^-(uphillSkid x angle)),
+  // set so a full circle needs the top of the trail's speed range, about 90% of the speed that ends in a fall
+  green:{name:'Green', target:18, band:4, len:320, uphillSkid:.27, pitch:[[0,8],[70,12],[140,9],[200,14],[260,10]]},
+  blue: {name:'Blue',  target:24, band:4, len:320, uphillSkid:.36, pitch:[[0,13],[70,19],[130,14],[190,23],[250,16]]},
+  black:{name:'Black', target:30, band:5, len:320, uphillSkid:.42, pitch:[[0,18],[60,26],[120,20],[180,30],[240,22]]}
 };
 const WORDS = ['slow','steady','fast'];
 
@@ -249,8 +251,10 @@ window.addEventListener('keyup', e => {
 function step(dt){
   const T = s.T;
   if (input.keyDir) input.h += input.keyDir*(input.fast? 240:90)*dt;
-  const maxd = ROT_RATE*Math.PI/180*dt;
-  s.h += clamp(input.h*Math.PI/180 - s.h, -maxd, maxd);
+  const maxd = ROT_RATE*Math.PI/180*dt, turn = clamp(input.h*Math.PI/180 - s.h, -maxd, maxd);
+  s.h += turn;
+  // pointing back up the hill, turning the skis further pivots them against the slope: they skid, and that scrubs speed
+  if (Math.cos(s.h) < 0) s.v *= Math.exp(-T.uphillSkid*Math.abs(turn));
 
   s.pitch = pitchAt(T, s.y);
   // pointed back up the hill, gravity stops the skier; stopped there, the edges hold and they don't slide backwards
@@ -587,7 +591,7 @@ function showMenu(){
     <a class="back" href="../">← All games</a>
     <h1>Rotary</h1>
     <p class="src">Turn shape controls speed.</p>
-    <p>Grab the wheel and turn it to turn your skis. Point them down the hill and you speed up. Turn them across the hill and you slow down. Keep turning and they point back up the hill: with enough speed you carry the turn right round, and without it you stop. Point them down again to go.</p>
+    <p>Grab the wheel and turn it to turn your skis. Point them down the hill and you speed up. Turn them across the hill and you slow down. Keep turning and they point back up the hill, which stops you. Only near your top speed, with a quick turn, can you carry it right round. Point them down again to go.</p>
     <p style="font-size:14px;color:var(--ink-soft)">The pitch changes as you go, so one turn shape won’t hold your speed. The green marks around the wheel show the ski direction that holds it right now: inside them you speed up, outside them you slow down.</p>
     ${chipsHTML()}
     <div class="best"><b class="target" style="color:var(--ink)">${targetText()}</b><br>${bestText()}</div>

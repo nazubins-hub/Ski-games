@@ -127,7 +127,8 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
     <ul>
       <li><b>Edge only:</b> a carve. The sidecut bends the ski into a clean arc; more edge, tighter turn, more pressure.</li>
       <li><b>Rotate only:</b> a pivot slip. The flat skis slide sideways with almost no pressure.</li>
-      <li><b>Both:</b> a skid. The edge bites into the slide, pressure builds and speed scrubs off. Rotate hard, then edge: an edge set.</li>
+      <li><b>Both, the same way:</b> a skid. The edge bites into the slide, pressure builds and speed scrubs off. Rotate hard, then edge: an edge set.</li>
+      <li><b>Rotate against the edge:</b> it can’t turn the skis that way. It steadies them along the edge instead, for a clean carve.</li>
       <li>Speed multiplies it all. Drag the view to look from any side.</li>
     </ul>
     <button class="btn" id="go">Start</button>
@@ -186,7 +187,7 @@ const dirOf = a => [-Math.sin(a), 0, Math.cos(a)], rightOf = a => [Math.cos(a), 
 let speedKey = 'medium';
 try{ const saved = localStorage.getItem('pressure.speed'); if (saved && SPEEDS[saved]) speedKey = saved; }catch(e){}
 const pads = { edge:{ el:$('padEdge'), knob:$('knobEdge'), v:0, id:null, x0:0, key:0 }, rot:{ el:$('padRot'), knob:$('knobRot'), v:0, id:null, x0:0, key:0 } };
-const s = { pos:[0,0,0], v:SPEEDS[speedKey]/3.6, phi:0, psi:0, beta:0, theta:0, turn:0, a:0, P:1, Pprev:1, Prate:0, setT:0,
+const s = { pos:[0,0,0], uEff:0, steady:0, v:SPEEDS[speedKey]/3.6, phi:0, psi:0, beta:0, theta:0, turn:0, a:0, P:1, Pprev:1, Prate:0, setT:0,
             state:'flat glide', tracks:[[], []], spray:[], lastTrack:null, camPhi:0, camYaw:0.6, camPitch:30*DEG, bend:[0,0], split:[0.5,0.5] };
 
 // ---------- pads: one finger each, so two thumbs work at once ----------
@@ -254,13 +255,20 @@ function step(dt){
   const th = Math.abs(s.theta), u = -pads.rot.v, edgeSide = Math.sign(s.theta);
   // carving: an edged ski follows its sidecut, a radius of R_SC*cos(edge)
   const carve = th > 3*DEG ? edgeSide*s.v/(R_SC*Math.cos(th)) : 0;
-  let twist = u*ROT_MAX*DEG;
-  if (!u) twist = -s.beta*1.2;                                   // stop twisting and the skis line back up with their travel
+  // on an edge, twisting the skis against their tilt has nothing to push on: it turns nothing, and instead
+  // steadies them along the edge, so any skid dies out and the carve runs clean. Flat skis pivot either way;
+  // the change blends in over the first few degrees of edge
+  const engaged = clamp((th - 3*DEG)/(5*DEG), 0, 1), against = u !== 0 && edgeSide !== 0 && Math.sign(u) === -edgeSide;
+  const uEff = against ? u*(1 - engaged) : u, steady = against ? Math.abs(u)*engaged : 0;
+  s.uEff = uEff; s.steady = steady;
+  let twist = uEff*ROT_MAX*DEG;
+  if (!uEff) twist = -s.beta*1.2;                                // stop twisting and the skis line back up with their travel
+  twist -= s.beta*6*steady;
   if ((s.beta >= BETA_MAX*DEG && twist > 0) || (s.beta <= -BETA_MAX*DEG && twist < 0)) twist = 0;
   s.psi += (carve + twist)*dt;
   s.beta = wrap(s.psi - s.phi);
   // grip: the snow pulls the travel round toward where the skis point, much harder with an edge in it
-  const K = 0.6 + 9*Math.sin(th);
+  const K = (0.6 + 9*Math.sin(th))*(1 + steady);
   let turn = carve + K*Math.sin(s.beta), a = s.v*turn;
   const aMax = (0.3 + 3*Math.sin(th))*G;
   if (Math.abs(a) > aMax){ a = Math.sign(a)*aMax; turn = a/Math.max(s.v, 0.5); }
@@ -468,7 +476,7 @@ function updateUI(){
   const sw = $('stateWord'); sw.textContent = s.state; sw.style.color = C[STATE_COL[s.state]];
   const e = Math.round(s.theta/DEG), sk = Math.round(s.beta/DEG);
   $('vEdge').textContent = Math.abs(e) < 2 ? 'flat' : Math.abs(e) + '° ' + (e > 0 ? 'L' : 'R');
-  $('vRot').textContent = Math.round(Math.abs(pads.rot.v)*ROT_MAX) + '°/s';
+  $('vRot').textContent = Math.round(Math.abs(s.uEff)*ROT_MAX) + '°/s';
   $('vSkid').textContent = Math.abs(sk) + '°';
   $('vRad').textContent = Math.abs(s.turn) > 0.03 ? Math.round(s.v/Math.abs(s.turn)) + ' m' : '–';
   $('vSpd').textContent = Math.round(s.v*3.6) + ' km/h';
@@ -477,8 +485,8 @@ function updateUI(){
     pd.el.setAttribute('aria-valuenow', Math.round(pd.v*100));
   }
   $('edgeVal').textContent = Math.abs(e) < 2 ? 'flat' : Math.abs(e) + '° ' + (e > 0 ? 'left' : 'right');
-  const rv = Math.round(Math.abs(pads.rot.v)*ROT_MAX);
-  $('rotVal').textContent = rv < 3 ? '0°/s' : rv + '°/s ' + (pads.rot.v < 0 ? 'left' : 'right');
+  const rv = Math.round(Math.abs(s.uEff)*ROT_MAX);
+  $('rotVal').textContent = s.steady > 0.15 ? 'steadying the carve' : rv < 3 ? '0°/s' : rv + '°/s ' + (s.uEff > 0 ? 'left' : 'right');
   $('iconEdge').setAttribute('transform', `rotate(${-s.theta/DEG})`);       // the cross-section, tipping
   $('iconRot').setAttribute('transform', `rotate(${-s.beta/DEG})`);         // the ski from above, against its travel
 }

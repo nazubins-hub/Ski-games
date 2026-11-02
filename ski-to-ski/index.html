@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ski-to-Ski Pressure</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --snow:#F3F7FA; --snow-shade:#D9E3EC; --ink:#17243A; --ink-soft:#5A6880;
+  --panel:#FFFFFF; --line:#C9D5E1; --good:#2B8A5E; --warn:#D08F00; --bad:#D22B40; --cool:#1E5BCC;
+  --sky:#E3EDF6; --ridge:#C9D7E4; --ground:#FFFFFF; --ground-shade:#EEF3F8; --deep:#D3DEE8;
+  --tree:#2E5A45; --tree-hi:#477A5F; --jacket:#0F766E;
+  --scrim:rgba(243,247,250,.92);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --snow:#0E1828; --snow-shade:#1A2940; --ink:#E5EDF6; --ink-soft:#93A3BA;
+    --panel:#13213A; --line:#2A3C58; --good:#3FBF86; --warn:#F1B42F; --bad:#FF5C70; --cool:#5D8DFF;
+    --sky:#0E1828; --ridge:#1C2B43; --ground:#2A3B57; --ground-shade:#27384F; --deep:#1D2B42;
+    --tree:#24493A; --tree-hi:#356A52; --jacket:#2DD4BF;
+    --scrim:rgba(14,24,40,.9);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --snow:#0E1828; --snow-shade:#1A2940; --ink:#E5EDF6; --ink-soft:#93A3BA;
+  --panel:#13213A; --line:#2A3C58; --good:#3FBF86; --warn:#F1B42F; --bad:#FF5C70; --cool:#5D8DFF;
+  --sky:#0E1828; --ridge:#1C2B43; --ground:#2A3B57; --ground-shade:#27384F; --deep:#1D2B42;
+  --tree:#24493A; --tree-hi:#356A52; --jacket:#2DD4BF;
+  --scrim:rgba(14,24,40,.9);
+  color-scheme: dark;
+}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);}
+body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Barlow,"Helvetica Neue",Arial,sans-serif;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
+.app{position:relative;height:100%;max-width:520px;margin:0 auto;display:flex;flex-direction:column}
+.hud{display:grid;grid-template-columns:auto auto auto 1fr auto;gap:16px;align-items:end;padding:10px 16px 8px}
+.pause{align-self:center;width:36px;height:36px;padding:0;display:grid;place-items:center;border-radius:8px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+.pause:focus-visible{outline:3px solid var(--ink-soft);outline-offset:1px}
+.stat .k,.k{display:block;font-size:12px;color:var(--ink-soft);letter-spacing:.02em;white-space:nowrap}
+.stat .v{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:26px;line-height:1;font-variant-numeric:tabular-nums}
+.balance .bar{height:10px;border-radius:5px;background:var(--snow-shade);overflow:hidden;margin-top:6px}
+.balance .bar i{display:block;height:100%;width:100%;background:var(--good);transition:background-color .2s}
+.stage{position:relative;flex:1;min-height:0}
+#slope{position:absolute;inset:0;width:100%;height:100%;display:block}
+.overlay{position:absolute;inset:0;z-index:2;display:flex;padding:20px;background:var(--scrim);overflow-y:auto}
+.overlay[hidden]{display:none}
+.card{max-width:360px;margin:auto}
+.back{display:inline-block;margin:0 0 10px;padding:6px 0;font:600 14px Barlow,sans-serif;color:var(--ink-soft);text-decoration:none}
+.back:hover,.back:focus-visible{color:var(--ink);text-decoration:underline}
+.card h1,.card h2{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;margin:0 0 6px;line-height:.95}
+.card h1{font-size:56px;letter-spacing:-.01em}
+.card h2{font-size:40px}
+.card p{margin:0 0 12px;line-height:1.45;font-size:16px}
+.card .src{font-size:13px;color:var(--ink-soft);border-left:3px solid var(--jacket);padding-left:10px}
+.cause{font-size:19px!important;font-weight:600}
+.chips{display:flex;gap:8px;margin:14px 0 6px}
+.chip{flex:1;font:600 15px Barlow,sans-serif;padding:10px 0;border-radius:8px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+.chip[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.chip .dot{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:0}
+.dot.green{background:#2B8A5E;border-radius:50%}.dot.blue{background:#1E5BCC}.dot.black{background:var(--ink);transform:rotate(45deg) scale(.85)}
+.best{font-size:13px;color:var(--ink-soft);min-height:18px;margin-bottom:14px}
+.btn{display:block;width:100%;font:700 22px "Barlow Condensed",sans-serif;padding:12px;border-radius:10px;border:0;background:var(--ink);color:var(--snow);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);font:600 15px Barlow,sans-serif;padding:10px;margin-top:6px}
+.statsline{display:flex;flex-wrap:wrap;gap:8px 18px;margin:4px 0 16px}
+.statsline div{font-size:12px;color:var(--ink-soft)}
+.statsline b{display:block;font:700 26px "Barlow Condensed",sans-serif;color:var(--ink)}
+.controls{padding:8px 16px 14px;border-top:1px solid var(--line);background:var(--panel)}
+.meter-row{display:grid;grid-template-columns:auto 1fr 96px;gap:10px;align-items:center}
+.meter{position:relative;height:12px;border-radius:6px;overflow:hidden;opacity:.9;
+  background:linear-gradient(to right,var(--bad) 0 var(--r1),var(--warn) var(--r1) var(--r2),var(--good) var(--r2) var(--r3),var(--warn) var(--r3) var(--r4),var(--bad) var(--r4) 100%)}
+.meter i{position:absolute;top:-2px;bottom:-2px;width:4px;margin-left:-2px;background:var(--ink);border-radius:2px;left:50%}
+.meter-ends{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-soft);margin:2px 106px 0 calc(10px + 4.6em)}
+#meterWord{font:700 18px "Barlow Condensed",sans-serif;text-align:right}
+#trace{display:block;width:100%;height:56px;margin:8px 0 6px}
+.slider{position:relative;height:56px;touch-action:none;cursor:grab;outline:none;border-radius:12px}
+.slider:focus-visible{box-shadow:0 0 0 3px var(--cool)}
+.slider.active{cursor:grabbing}
+.track{position:absolute;left:22px;right:22px;top:50%;height:8px;margin-top:-4px;border-radius:4px;background:var(--snow-shade)}
+.track .target{position:absolute;top:-5px;bottom:-5px;border-radius:5px;background:var(--good);opacity:.35}
+.track .notch{position:absolute;left:50%;top:-8px;bottom:-8px;width:2px;margin-left:-1px;background:var(--ink-soft)}
+.thumb{position:absolute;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:var(--panel);border:3px solid var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.18)}
+.thumb::after{content:"";position:absolute;left:50%;top:9px;bottom:9px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--ink)}
+.slider-labels{display:flex;justify-content:space-between;font-size:13px;color:var(--ink-soft);padding:0 4px}
+#splitVal{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion: reduce){.balance .bar i{transition:none}}
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="hud">
+    <div class="stat"><span class="k">Balanced</span><span class="v" id="balanced">–</span></div>
+    <div class="stat"><span class="k">Turns</span><span class="v" id="turns">0</span></div>
+    <div class="stat"><span class="k">On time</span><span class="v" id="ontime">–</span></div>
+    <div class="balance"><span class="k">Balance</span><div class="bar"><i id="balFill"></i></div></div>
+    <button class="pause" id="pause" aria-label="Pause"><svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="1" width="4" height="14" rx="1" fill="currentColor"/><rect x="9" y="1" width="4" height="14" rx="1" fill="currentColor"/></svg></button>
+  </header>
+
+  <div class="stage" id="stage">
+    <canvas id="slope" aria-label="View from behind a skier following a curving trail"></canvas>
+  </div>
+
+  <section class="controls">
+    <div class="meter-row">
+      <span class="k">Pressure</span>
+      <div class="meter" id="meter"><i id="needle"></i></div>
+      <span id="meterWord">–</span>
+    </div>
+    <div class="meter-ends"><span>left ski</span><span>right ski</span></div>
+    <canvas id="trace" aria-label="Pressure split and what the turn asks for, over the last six seconds"></canvas>
+    <div class="slider" id="slider" tabindex="0" role="slider" aria-label="Pressure from left ski to right ski" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
+      <div class="track" id="track">
+        <div class="target" id="target"></div>
+        <span class="notch"></span>
+        <div class="thumb" id="thumb" style="left:50%"></div>
+      </div>
+    </div>
+    <div class="slider-labels"><span>Left ski</span><span id="splitVal">Both</span><span>Right ski</span></div>
+  </section>
+  <div class="overlay" id="overlay"><div class="card" id="card"></div></div>
+</main>
+
+<script>
+(function(){
+const G = 9.81;
+const A_FULL = 0.6*G;            // m/s² of turning at which a turn wants all the weight on the outside ski
+const SEG = 2, RAMP_T = 1.2;     // m per course segment; s over which a turn tightens and releases
+const IN1 = 0.2, IN2 = 0.45, IN_FALL = 0.7;    // pressure error toward the inside ski: balanced, off, too far, washes out
+const OUT1 = 0.25, OUT2 = 0.45;  // toward the outside ski: balanced, off. Beyond drains but never throws you
+const P_RATE = 4;                // split units/s: how fast the weight can move from ski to ski
+const EARLY = -0.1, ON_TIME = 0.3;             // s: a transfer timed against the turn's own demand reaching a share of its peak
+const XFER = 0.3;                               // that share
+const STANCE = 0.15;             // m from the centre line to each foot
+const CH = 3.5, ZS = 4.5, ROADW = 16, DRAW = 120;   // camera height, skier's distance ahead of it, trail width (m), segments drawn
+const TRAILS = {
+  // turns alternate left and right: [radius (m), arc (deg), gap after (m)]; speed in km/h
+  green:{name:'Green', kmh:22, gap:12, turns:[[34,65],[34,65],[30,70],[30,70],[28,70],[28,70],[32,65],[32,65],[28,70],[28,70]]},
+  blue: {name:'Blue',  kmh:32, gap:9,  turns:[[22,70],[22,70],[18,75],[18,75],[16,75],[16,75],[10,70,5],[10,70,5],[10,70,5],[10,70],[18,75],[18,75]]},
+  black:{name:'Black', kmh:42, gap:6,  turns:[[18,75],[18,75],[15,75],[15,75],[9,70,4],[9,70,4],[9,70,4],[9,70,4],[9,70],[14,75],[14,75],[12,75]]}
+};
+
+const $ = id => document.getElementById(id);
+const cv = $('slope'), ctx = cv.getContext('2d');
+const tc = $('trace'), tctx = tc.getContext('2d');
+const overlay = $('overlay'), card = $('card');
+const slider = $('slider'), track = $('track'), thumb = $('thumb');
+
+let C = {};
+function readColors(){
+  const cs = getComputedStyle(document.documentElement);
+  ['snow','snow-shade','ink','ink-soft','panel','line','good','warn','bad','cool','sky','ridge','ground','ground-shade','deep','tree','tree-hi','jacket']
+    .forEach(k => C[k] = cs.getPropertyValue('--'+k).trim());
+  C.zone = [C.good, C.warn, C.bad];
+}
+readColors();
+try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); }catch(e){}
+
+let W=0,H=0,DPR=1,TW=0,TH=0,HZ=0,FL=0;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  const r = cv.getBoundingClientRect();
+  W = r.width; H = r.height;
+  cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+  HZ = H*0.3; FL = (H*0.86 - HZ)*ZS/CH;           // horizon at 30% down, the skier's feet at 86%
+  const tr = tc.getBoundingClientRect();
+  TW = tr.width; TH = tr.height;
+  tc.width = Math.round(TW*DPR); tc.height = Math.round(TH*DPR);
+}
+window.addEventListener('resize', resize);
+
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const smooth01 = u => { u = clamp(u, 0, 1); return u*u*(3 - 2*u); };
+function hash(n){ const x = Math.sin(n*127.1+311.7)*43758.5453; return x - Math.floor(x); }
+
+// ---------- the course ----------
+// curvature on a 2 m grid, positive turning left. Each turn tightens and releases over RAMP_T seconds of travel
+let CO = null;
+function buildCourse(T){
+  const turns = []; let s = 25, dir = 1;
+  const v = T.kmh/3.6, ramp = clamp(v*RAMP_T, 6, 12);       // the same time to tighten at any speed
+  T.turns.forEach(([R, arc, gap], i) => {
+    const len = R*arc*Math.PI/180;
+    turns.push({ s0:s, s1:s + len, k:dir/R, dir, n:i+1, peak:Math.min(1, v*v/R/A_FULL) });
+    s += len + (i < T.turns.length-1 ? (gap ?? T.gap) : 0); dir = -dir;
+  });
+  const len = s + 25, n = Math.ceil(len/SEG) + DRAW + 4, k = new Float64Array(n);
+  for (let i=0;i<n;i++){
+    const x = i*SEG, t = turns.find(t => x >= t.s0 && x <= t.s1);
+    k[i] = t ? t.k*smooth01(Math.min(x - t.s0, t.s1 - x)/ramp) : 0;
+  }
+  return { turns, len, k, n };
+}
+const kAt = x => { const f = clamp(x/SEG, 0, CO.n-1.001), i = Math.floor(f); return CO.k[i]*(1-(f-i)) + CO.k[i+1]*(f-i); };
+
+// ---------- state ----------
+let trailKey = 'blue';
+try{ const saved = localStorage.getItem('skiToSki.trail'); if (saved && TRAILS[saved]) trailKey = saved; }catch(e){}
+const input = { p:0, keyDir:0, fast:false };
+let s = null, mode = 'menu';
+
+function newRun(){
+  const T = TRAILS[trailKey];
+  CO = buildCourse(T);
+  input.p = 0;
+  s = { T, v:T.kmh/3.6, dist:0, p:0, prevP:0, target:0, side:0, err:0, zone:0, inside:false, bal:100, heading:0, lean:0,
+        tRun:0, tBal:0, tIn:0, tOver:0, xfer:null,
+        grades:[], flash:null, trace:[], fallT:0, cause:'', fallInside:true, hinted:false };
+}
+
+// ---------- slider input ----------
+let drag = null;
+slider.addEventListener('pointerdown', e => {
+  if (mode==='paused' || drag) return;    // one finger steers: a second one would make the slider jump
+  slider.setPointerCapture(e.pointerId);
+  drag = { id:e.pointerId, x:e.clientX, v:input.p };
+  slider.classList.add('active');
+  e.preventDefault();
+});
+slider.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const w = track.clientWidth || 1;
+  input.p = clamp(drag.v + (e.clientX - drag.x)/w*2, -1, 1);
+});
+const endDrag = e => { if (e && drag && e.pointerId !== drag.id) return; drag = null; slider.classList.remove('active'); };
+slider.addEventListener('pointerup', endDrag);
+slider.addEventListener('pointercancel', endDrag);
+slider.addEventListener('lostpointercapture', endDrag);
+
+window.addEventListener('keydown', e => {
+  if ((e.key==='Escape' || e.key==='p' || e.key==='P') && (mode==='run' || mode==='paused')){
+    mode==='run' ? pause() : resume(); e.preventDefault(); return;
+  }
+  if (mode==='paused' && (e.key==='ArrowLeft' || e.key==='ArrowRight')) return;
+  if (e.key==='ArrowLeft' || e.key==='ArrowRight'){
+    input.keyDir = e.key==='ArrowLeft'? -1 : 1; input.fast = e.shiftKey; e.preventDefault();
+  } else if ((e.key===' '||e.key==='Enter') && !overlay.hidden){
+    // the card may still hold an earlier screen's buttons while hidden (during a fall), so only a visible one counts
+    const b = card.querySelector('.btn'), ae = document.activeElement;
+    if (b && !(ae && ae.closest && ae.closest('button, a'))){ b.click(); e.preventDefault(); }
+  }
+});
+window.addEventListener('keyup', e => {
+  if (e.key==='ArrowLeft' && input.keyDir===-1) input.keyDir = 0;
+  if (e.key==='ArrowRight' && input.keyDir===1) input.keyDir = 0;
+  if (e.key==='Shift') input.fast = false;
+});
+
+// ---------- simulation ----------
+const GRADE = { early:{text:'Early transfer', c:'cool'}, ontime:{text:'On time', c:'good'}, late:{text:'Late onto the new outside ski', c:'warn'} };
+function grade(kind, turn){
+  s.grades.push({ kind, turn });
+  s.flash = { text: GRADE[kind].text, t:1.3, c: C[GRADE[kind].c] };
+}
+function step(dt){
+  if (!(dt > 0)) return;
+  const T = s.T;
+  if (input.keyDir) input.p = clamp(input.p + input.keyDir*(input.fast? 4:1.5)*dt, -1, 1);
+  // the weight can only move from ski to ski so fast
+  s.prevP = s.p;
+  s.p += clamp(input.p - s.p, -P_RATE*dt, P_RATE*dt);
+  s.dist += s.v*dt;
+
+  // what the turn asks for: the harder it pulls (v²/R), the more of the weight belongs on the outside ski
+  const k = kAt(s.dist), pull = s.v*s.v*k;
+  s.target = clamp(pull/A_FULL, -1, 1);                       // + is the right ski, the outside of a left turn
+  s.heading += k*s.v*dt;
+  s.lean = Math.atan(pull/G);                                 // inclination into the turn, + leaning left
+  const side = Math.abs(s.target) < 0.05 ? 0 : Math.sign(s.target);
+
+  // a transfer: from the apex of one turn, watch for the next turn's demand, and the weight, to reach a share
+  // of that turn's peak on its outside ski. How far apart they get there is the grade
+  const nt = CO.turns.find(t => s.dist < (t.s0 + t.s1)/2);
+  if (nt && (!s.xfer || s.xfer.turn !== nt)){
+    if (s.xfer && !s.xfer.done) grade('late', s.xfer.turn.n);
+    s.xfer = { turn:nt, level:XFER*nt.peak, tT:null, tP:null, done: nt.n === 1 };   // the first turn has nothing to transfer from
+    if (nt.n === 1 && !s.hinted){ s.hinted = true; s.flash = { text: nt.dir > 0 ? 'Left turn: stand on the right ski' : 'Right turn: stand on the left ski', t:2, c:C.cool }; }
+  }
+  const X = s.xfer;
+  if (X && !X.done){
+    const sd = X.turn.dir;
+    if (X.tT === null && s.target*sd >= X.level) X.tT = s.tRun;
+    if (X.tP === null && s.p*sd >= X.level) X.tP = s.tRun;
+    if (X.tT !== null && X.tP !== null){ const d = X.tP - X.tT; grade(d < EARLY ? 'early' : d <= ON_TIME ? 'ontime' : 'late', X.turn.n); X.done = true; }
+    else if (X.tT !== null && s.tRun - X.tT > ON_TIME){ grade('late', X.turn.n); X.done = true; }
+  }
+
+  // balance: weight on the inside ski is the error that throws you; too much on the outside only wastes it
+  const d = s.p - s.target, inErr = side ? -d*side : 0;
+  let e, zone;
+  if (inErr > 0){ e = inErr; zone = e < IN1 ? 0 : e < IN2 ? 1 : 2; s.inside = true; }
+  else { e = Math.abs(d); zone = e < OUT1 ? 0 : e < OUT2 ? 1 : 2; s.inside = false; }
+  s.err = e; s.zone = zone;
+  if (zone===0) s.bal += 20*dt;
+  else if (s.inside){ const f = (e-IN1)/(IN2-IN1); s.bal -= (zone===1 ? 3 + 37*f*f : 60 + (e-IN2)*300)*dt; }
+  else s.bal -= (zone===1 ? 6 + (e-OUT1)/(OUT2-OUT1)*20 : 40)*dt;
+  s.bal = Math.min(100, s.bal);
+  s.tRun += dt;
+  if (zone===0) s.tBal += dt; else if (s.inside) s.tIn += dt; else s.tOver += dt;
+
+  if (s.bal <= 0 || (s.inside && e >= IN_FALL)){
+    const prev = CO.turns.filter(t => t.s1 < s.dist).pop(), stale = !s.inside && prev && s.p*prev.dir > OUT1;
+    s.fallInside = s.inside || stale;
+    s.cause = s.inside ? 'Inside ski washed out: too much weight on the inside ski.'
+            : stale ? 'Still on the old outside ski: the weight moved across too late.'
+            : 'Stood on one ski where the turn didn’t need it.';
+    s.bal = 0; mode = 'fall'; s.fallT = 0; s.fallSide = s.lean >= 0 ? 1 : -1;
+    return;
+  }
+  if (s.dist >= CO.len - 20){ mode = 'done'; return; }
+  s.trace.push({t:s.tRun, p:s.p, g:s.target, z:zone});
+  while (s.trace.length && s.tRun - s.trace[0].t > 6) s.trace.shift();
+  if (s.flash){ s.flash.t -= dt; if (s.flash.t<=0) s.flash = null; }
+}
+
+function stepFall(dt){
+  s.fallT += dt;
+  s.v *= Math.exp(-2.5*dt); s.dist += s.v*dt;
+  s.heading += kAt(s.dist)*s.v*dt;
+  if (s.fallT > 1.4 && mode==='fall'){ mode = 'fallen'; showFall(); }
+}
+
+// ---------- drawing ----------
+const proj = (x, z, y = 0) => [W/2 + x*FL/z, HZ + (CH - y)*FL/z];
+
+function draw(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  // sky, and a ridge that slides past as the trail turns
+  const sky = ctx.createLinearGradient(0, 0, 0, HZ);
+  sky.addColorStop(0, C.sky); sky.addColorStop(1, C.snow);
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, HZ + 1);
+  ctx.fillStyle = C.ridge; ctx.beginPath(); ctx.moveTo(0, HZ + 1);
+  for (let x = 0; x <= W + 8; x += 8){
+    const u = (x - s.heading*W*0.9)/W;
+    ctx.lineTo(x, HZ - 18 - Math.sin(u*5.1)*12 - Math.sin(u*11.3 + 1.7)*7 - Math.sin(u*2.3 + .4)*10);
+  }
+  ctx.lineTo(W, HZ + 1); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = C.deep; ctx.fillRect(0, HZ, W, H - HZ);
+
+  // the trail ahead, far to near. Its line bends with the course: dx is the heading off the skier's
+  const i0 = Math.floor((s.dist - (ZS - 0.6))/SEG), pts = [];
+  let x = 0, dx = 0, at = s.dist;
+  for (let j = 0; j <= DRAW; j++){
+    const sj = (i0 + j)*SEG, z = ZS + (sj - s.dist);
+    if (sj > at){ const h = sj - at; dx -= kAt(sj)*h; x += dx*h; at = sj; }
+    pts.push({ sj, z, x: sj > s.dist ? x : 0, idx:i0 + j });
+  }
+  for (let j = DRAW - 1; j >= 0; j--){
+    const a = pts[j], b = pts[j+1];
+    if (a.z < 0.4) continue;
+    const [al] = proj(a.x - ROADW/2, a.z), [ar, ay] = proj(a.x + ROADW/2, a.z);
+    const [bl] = proj(b.x - ROADW/2, b.z), [br, by] = proj(b.x + ROADW/2, b.z);
+    ctx.fillStyle = a.idx % 2 ? C.ground : C['ground-shade'];   // corduroy, for the sense of speed
+    ctx.beginPath(); ctx.moveTo(al, ay); ctx.lineTo(ar, ay); ctx.lineTo(br, by); ctx.lineTo(bl, by); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = C['ink-soft']; ctx.globalAlpha = .45; ctx.lineWidth = Math.max(1, 2.5*FL/a.z*0.05);
+    ctx.beginPath(); ctx.moveTo(al, ay); ctx.lineTo(bl, by); ctx.moveTo(ar, ay); ctx.lineTo(br, by); ctx.stroke(); ctx.globalAlpha = 1;
+    drawObjects(b);
+  }
+  drawSkier();
+  if (s.flash){
+    ctx.globalAlpha = Math.min(1, s.flash.t*2);
+    ctx.font = '700 22px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = s.flash.c; ctx.fillText(s.flash.text, W/2, 30);
+    ctx.globalAlpha = 1;
+  }
+}
+// trees beside the trail, and a gate at each turn's apex on its inside
+function drawObjects(pt){
+  if (pt.z < 1) return;
+  const sc = FL/pt.z;
+  if (pt.idx % 2 === 0) for (const sd of [-1, 1]){
+    if (hash(pt.idx*1.3 + sd) < 0.2) continue;
+    const tx = pt.x + sd*(ROADW/2 + 1 + hash(pt.idx*2.7 + sd)*3), ht = 4 + hash(pt.idx*5.1 + sd)*3;
+    const [bx, byy] = proj(tx, pt.z);
+    ctx.fillStyle = C.tree; ctx.beginPath(); ctx.moveTo(bx, byy - ht*sc); ctx.lineTo(bx - ht*.3*sc, byy); ctx.lineTo(bx + ht*.3*sc, byy); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = C['tree-hi']; ctx.beginPath(); ctx.moveTo(bx, byy - ht*sc); ctx.lineTo(bx - ht*.1*sc, byy - ht*.45*sc); ctx.lineTo(bx + ht*.05*sc, byy - ht*.5*sc); ctx.closePath(); ctx.fill();
+  }
+  for (const t of CO.turns){
+    const apex = (t.s0 + t.s1)/2;
+    if (apex < pt.sj - SEG || apex >= pt.sj) continue;
+    const [gx, gy] = proj(pt.x - t.dir*3, pt.z), hgt = 1.6*sc, wid = 0.9*sc;
+    ctx.fillStyle = t.n % 2 ? C.bad : C.cool;
+    ctx.fillRect(gx - wid/2, gy - hgt, wid, hgt*0.55);
+    ctx.fillStyle = C.ink;
+    ctx.fillRect(gx - wid/2 - 1, gy - hgt, Math.max(1.5, 0.05*sc), hgt); ctx.fillRect(gx + wid/2 - 1, gy - hgt, Math.max(1.5, 0.05*sc), hgt);
+  }
+}
+
+// ---------- the skier, from behind ----------
+// x to the skier's right, y up, metres. Both skis on the snow; the body inclines into the turn, so the
+// inside hip drops toward the inside foot (a short, flexed inside leg) and the outside leg reaches long.
+// The pressure split moves the hips along the pelvis line, over whichever ski carries the weight
+const THIGH = 0.47, SHIN = 0.47;
+function rearPose(lean, p){
+  const lam = -clamp(lean, -0.85, 0.85);                     // + leans to the skier's right
+  const ax = [Math.sin(lam), Math.cos(lam)], perp = [Math.cos(lam), -Math.sin(lam)];
+  const ankL = [-STANCE, 0.12], ankR = [STANCE, 0.12], c = p*STANCE*Math.cos(lam);
+  let hgt = 0.85, pel, hipL, hipR;
+  for (let i=0;i<3;i++){                                     // lower the hips until the long leg can reach
+    pel = [ax[0]*hgt + perp[0]*c, 0.12 + ax[1]*hgt + perp[1]*c];
+    hipL = [pel[0] - perp[0]*0.11, pel[1] - perp[1]*0.11]; hipR = [pel[0] + perp[0]*0.11, pel[1] + perp[1]*0.11];
+    const longest = Math.max(Math.hypot(hipL[0]-ankL[0], hipL[1]-ankL[1]), Math.hypot(hipR[0]-ankR[0], hipR[1]-ankR[1]));
+    if (longest <= 0.92) break; hgt -= longest - 0.92;
+  }
+  // knees bend out of the line from ankle to hip: toward the inside of the turn, which is what tips the skis
+  // on edge. Running straight, the bend is mostly forward, out of sight, so only a little shows, knees in
+  const inward = Math.abs(lam) > 0.04 ? Math.sign(lam) : 0;
+  const knee = (ank, hip, own) => {
+    const L = Math.hypot(hip[0]-ank[0], hip[1]-ank[1]), off = Math.sqrt(Math.max(0, SHIN*SHIN - L*L/4));
+    let nx = -(hip[1]-ank[1])/L, ny = (hip[0]-ank[0])/L;
+    const dir = inward || own, f = inward ? 0.85 : 0.25;
+    if (Math.sign(nx) !== dir){ nx = -nx; ny = -ny; }
+    return [(ank[0]+hip[0])/2 + nx*off*f, (ank[1]+hip[1])/2 + ny*off*f];
+  };
+  const lt = lam*0.55, tdir = [Math.sin(lt), Math.cos(lt)], tperp = [Math.cos(lt), -Math.sin(lt)];   // angulation keeps the shoulders level-ish
+  const sh = [pel[0] + tdir[0]*0.55, pel[1] + tdir[1]*0.55];
+  const head = [sh[0] + Math.sin(lt*0.6)*0.24, sh[1] + Math.cos(lt*0.6)*0.24];
+  return { lam, ankL, ankR, pel, hipL, hipR, kneeL: knee(ankL, hipL, 1), kneeR: knee(ankR, hipR, -1), sh, tperp, head,
+           legL: Math.hypot(hipL[0]-ankL[0], hipL[1]-ankL[1]), legR: Math.hypot(hipR[0]-ankR[0], hipR[1]-ankR[1]) };
+}
+function drawSkier(){
+  const m = FL/ZS, fy = HZ + CH*m, B = (x, y) => [W/2 + x*m, fy - y*m];
+  const falling = mode==='fall' || mode==='fallen';
+  const q = rearPose(s.lean, s.p), edge = q.lam*1.2;          // the skis tip a little further than the body leans
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // pressure under each ski: the share it carries
+  const share = { L:(1 - s.p)/2, R:(1 + s.p)/2 };
+  for (const [nm, fx] of [['L', -STANCE], ['R', STANCE]]){
+    const sh = share[nm], [px, py] = B(fx, 0);
+    ctx.fillStyle = s.zone===0 ? C.good : C.zone[s.zone]; ctx.globalAlpha = 0.15 + 0.5*sh;
+    ctx.beginPath(); ctx.ellipse(px, py + 0.02*m, (0.08 + 0.16*sh)*m, (0.03 + 0.05*sh)*m, 0, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // skis: seen from behind they run away up the screen, narrowing, tipped on edge (the tail shows the tilt)
+  for (const fx of [-STANCE, STANCE]){
+    const [tx, ty] = B(fx, -0.05), [px, py] = B(fx, 0.42), wt = 0.055*m, wp = 0.032*m;
+    ctx.save(); ctx.translate(tx, ty); ctx.rotate(edge*0.5);
+    ctx.fillStyle = C['ink-soft'];
+    ctx.beginPath(); ctx.moveTo(-wt, 0); ctx.lineTo(wt, 0); ctx.lineTo(px - tx + wp, py - ty); ctx.lineTo(px - tx - wp, py - ty); ctx.closePath(); ctx.fill();
+    ctx.rotate(edge*0.5); ctx.fillStyle = C.ink; ctx.fillRect(-wt*1.1, -0.012*m, wt*2.2, 0.03*m);
+    ctx.restore();
+  }
+  if (falling){                                               // a wash-out: down onto the inside hip
+    const f = clamp(s.fallT*1.6, 0, 1), [ix, iy] = B(s.fallSide > 0 ? -STANCE : STANCE, 0);
+    ctx.translate(ix, iy); ctx.rotate(-s.fallSide*1.2*f); ctx.translate(-ix, -iy);
+  }
+  const lw = Math.max(3, 0.1*m);
+  ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(1, 0.02*m);
+  for (const sd of [-1, 1]){                                   // poles
+    const hand = [q.sh[0] + q.tperp[0]*0.3*sd, q.sh[1] + q.tperp[1]*0.3*sd - 0.42];
+    ctx.beginPath(); ctx.moveTo(...B(...hand)); ctx.lineTo(...B(hand[0] + sd*0.25, 0)); ctx.stroke();
+  }
+  ctx.strokeStyle = C.ink; ctx.lineWidth = lw;
+  for (const [ank, kn, hp] of [[q.ankL, q.kneeL, q.hipL], [q.ankR, q.kneeR, q.hipR]]){
+    ctx.beginPath(); ctx.moveTo(...B(...ank)); ctx.lineTo(...B(...kn)); ctx.lineTo(...B(...hp)); ctx.stroke();
+  }
+  ctx.fillStyle = C.ink;
+  for (const ank of [q.ankL, q.ankR]){ const [bx, by] = B(ank[0], 0.08); ctx.fillRect(bx - 0.07*m, by - 0.1*m, 0.14*m, 0.16*m); }   // boots
+  ctx.fillStyle = C.panel; ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(1.2, 0.02*m);       // knee and hip joints, so the bends read
+  for (const j of [q.kneeL, q.kneeR, q.hipL, q.hipR]){ ctx.beginPath(); ctx.arc(...B(...j), Math.max(2.5, 0.035*m), 0, Math.PI*2); ctx.fill(); ctx.stroke(); }
+  ctx.lineWidth = lw*1.15;                                     // pelvis
+  ctx.beginPath(); ctx.moveTo(...B(...q.hipL)); ctx.lineTo(...B(...q.hipR)); ctx.stroke();
+  ctx.strokeStyle = C.jacket; ctx.lineWidth = lw*2.4;          // trunk
+  ctx.beginPath(); ctx.moveTo(...B(q.pel[0], q.pel[1] + 0.05)); ctx.lineTo(...B(...q.sh)); ctx.stroke();
+  ctx.lineWidth = lw*0.8;                                      // arms out for balance
+  for (const sd of [-1, 1]){
+    const so = [q.sh[0] + q.tperp[0]*0.18*sd, q.sh[1] + q.tperp[1]*0.18*sd];
+    const hand = [q.sh[0] + q.tperp[0]*0.3*sd, q.sh[1] + q.tperp[1]*0.3*sd - 0.42];
+    ctx.beginPath(); ctx.moveTo(...B(...so)); ctx.lineTo(...B((so[0] + hand[0])/2 + 0.08*sd, (so[1] + hand[1])/2)); ctx.lineTo(...B(...hand)); ctx.stroke();
+  }
+  ctx.fillStyle = C.ink; ctx.beginPath(); ctx.arc(...B(...q.head), 0.13*m, 0, Math.PI*2); ctx.fill();
+  if (!falling){
+    // where the hips belong for this turn, and where they are
+    const want = rearPose(s.lean, s.target).pel;
+    ctx.strokeStyle = C['ink-soft']; ctx.lineWidth = 1.5; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.arc(...B(want[0], want[1] + 0.02), 0.09*m, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    const [cx, cy] = B(q.pel[0], q.pel[1] + 0.02);
+    ctx.strokeStyle = C.panel; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(cx, cy, 0.09*m, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = C.zone[s.zone]; ctx.lineWidth = 2.5; ctx.stroke();
+    // the share each ski carries
+    ctx.font = '700 15px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = C.ink;
+    const side = Math.abs(s.target) < 0.05 ? 0 : Math.sign(s.target);
+    for (const [nm, fx, sd] of [['L', -STANCE, -1], ['R', STANCE, 1]]){
+      const [lx, ly] = B(fx + sd*0.3, 0);
+      const tag = side ? (sd === side ? 'outside ' : 'inside ') : '';
+      ctx.textAlign = sd < 0 ? 'right' : 'left';
+      ctx.fillText(tag + Math.round(share[nm]*100) + '%', lx, Math.min(H - 4, ly + 0.14*m));
+    }
+  }
+  ctx.restore();
+}
+
+function drawTrace(){
+  tctx.setTransform(DPR,0,0,DPR,0,0);
+  tctx.clearRect(0,0,TW,TH);
+  const pad = 4, mid = TH/2, amp = TH/2 - pad, x0 = 40, yOf = p => mid - clamp(p, -1, 1)*amp;
+  tctx.strokeStyle = C.line; tctx.lineWidth = 1; tctx.setLineDash([3,4]);
+  tctx.beginPath(); tctx.moveTo(x0, mid+.5); tctx.lineTo(TW, mid+.5); tctx.stroke(); tctx.setLineDash([]);
+  tctx.font = '500 11px Barlow, sans-serif'; tctx.fillStyle = C['ink-soft']; tctx.textAlign = 'left';
+  tctx.fillText('right', 2, 11); tctx.fillText('both', 2, mid+4); tctx.fillText('left', 2, TH-3);
+  if (!s || s.trace.length < 2) return;
+  const tEnd = s.tRun, X = t => x0 + (1 - (tEnd - t)/6)*(TW - x0);
+  tctx.strokeStyle = C['ink-soft']; tctx.lineWidth = 1.5; tctx.setLineDash([4,3]);   // what the turn asked for
+  tctx.beginPath(); s.trace.forEach((a, i) => i ? tctx.lineTo(X(a.t), yOf(a.g)) : tctx.moveTo(X(a.t), yOf(a.g))); tctx.stroke(); tctx.setLineDash([]);
+  tctx.lineWidth = 2.5; tctx.lineCap = 'round';
+  for (let i=1;i<s.trace.length;i++){
+    const a = s.trace[i-1], b = s.trace[i];
+    tctx.strokeStyle = C.zone[b.z];
+    tctx.beginPath(); tctx.moveTo(X(a.t), yOf(a.p)); tctx.lineTo(X(b.t), yOf(b.p)); tctx.stroke();
+  }
+}
+
+function updateUI(){
+  $('pause').style.visibility = mode==='run' ? 'visible' : 'hidden';
+  $('balanced').textContent = s.tRun > 0.5 ? Math.round(s.tBal/s.tRun*100)+'%' : '–';
+  $('turns').textContent = CO.turns.filter(t => t.s1 < s.dist).length + '/' + CO.turns.length;
+  const good = s.grades.filter(g => g.kind !== 'late').length;
+  $('ontime').textContent = s.grades.length ? good + '/' + s.grades.length : '–';
+  const bf = $('balFill'); bf.style.width = Math.max(0,s.bal)+'%';
+  bf.style.backgroundColor = s.bal > 60 ? C.good : s.bal > 30 ? C.warn : C.bad;
+  // the meter's bands sit around what this moment of the turn asks for
+  const side = Math.abs(s.target) < 0.05 ? 0 : Math.sign(s.target), pc = v => clamp((v + 1)*50, 0, 100) + '%';
+  // toward the left of the meter is the inside ski in a left turn (the right ski is outside), the outside in a right turn
+  const lo = side > 0 ? [IN1, IN2] : [OUT1, OUT2], hi = side < 0 ? [IN1, IN2] : [OUT1, OUT2];
+  const mt = $('meter').style;
+  mt.setProperty('--r1', pc(s.target - lo[1])); mt.setProperty('--r2', pc(s.target - lo[0]));
+  mt.setProperty('--r3', pc(s.target + hi[0])); mt.setProperty('--r4', pc(s.target + hi[1]));
+  $('needle').style.left = pc(s.p);
+  const tg = $('target').style; tg.left = pc(s.target - lo[0]); tg.width = ((lo[0] + hi[0])*50) + '%';
+  const mw = $('meterWord');
+  mw.textContent = s.zone===0 ? (side ? 'outside ski' : 'both skis') : s.inside ? (s.zone===2 ? 'inside ski!' : 'inside ski') : (side ? 'too far over' : 'one ski');
+  mw.style.color = C.zone[s.zone];
+  const pct = (input.p + 1)*50;
+  thumb.style.left = pct+'%';
+  const r = Math.round(Math.abs(input.p)*50 + 50);
+  $('splitVal').textContent = Math.abs(input.p) < 0.04 ? 'Both' : r + '% ' + (input.p < 0 ? 'left' : 'right');
+  slider.setAttribute('aria-valuenow', Math.round(input.p*100));
+}
+
+// ---------- screens ----------
+function bestText(){
+  try{
+    const b = JSON.parse(localStorage.getItem('skiToSki.best.'+trailKey) || 'null');
+    return b ? `Best on ${TRAILS[trailKey].name}: ${b.balanced}% balanced` : '';
+  }catch(e){ return ''; }
+}
+function saveBest(balanced){
+  try{
+    const key = 'skiToSki.best.'+trailKey;
+    const b = JSON.parse(localStorage.getItem(key) || 'null');
+    if (!b || balanced > b.balanced){ localStorage.setItem(key, JSON.stringify({balanced})); return true; }
+  }catch(e){}
+  return false;
+}
+function chipsHTML(){
+  return '<div class="chips" role="group" aria-label="Trail">' + Object.entries(TRAILS).map(([k,t]) =>
+    `<button class="chip" data-k="${k}" aria-pressed="${k===trailKey}"><span class="dot ${k}"></span>${t.name}</button>`).join('') + '</div>';
+}
+function wireChips(){
+  card.querySelectorAll('.chip').forEach(b => b.onclick = () => {
+    trailKey = b.dataset.k; try{ localStorage.setItem('skiToSki.trail', trailKey); }catch(e){}
+    card.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', c===b));
+    const be = card.querySelector('.best'); if (be) be.textContent = bestText();
+    newRun();
+  });
+}
+function showMenu(){
+  mode = 'menu'; newRun();
+  card.innerHTML = `
+    <a class="back" href="../">← All games</a>
+    <h1>Ski-to-Ski Pressure</h1>
+    <p class="src">Direct pressure toward the outside ski.</p>
+    <p>Drag the slider to move your weight from ski to ski. Every turn asks for a share on the outside ski, more the harder it turns, and the green band shows how much. Move to the new outside ski early at each transition.</p>
+    <p style="font-size:14px;color:var(--ink-soft)">Watch the legs: in a turn the outside leg is long and the inside leg short, with the hips over the outside ski. The dashed ring is where the hips belong; too much weight on the inside ski and it washes out.</p>
+    ${chipsHTML()}
+    <div class="best">${bestText()}</div>
+    <button class="btn" id="go">Start run</button>`;
+  wireChips();
+  $('go').onclick = start;
+  overlay.hidden = false;
+}
+function start(){ newRun(); overlay.hidden = true; mode = 'run'; slider.focus({preventScroll:true}); last = performance.now(); }
+const listTurns = ns => ns.length === 1 ? 'turn ' + ns[0] : 'turns ' + ns.slice(0, -1).join(', ') + ' and ' + ns[ns.length-1];
+function results(title, lead){
+  const balanced = s.tRun > 0 ? Math.round(s.tBal/s.tRun*100) : 0;
+  const rec = mode==='done' && saveBest(balanced);
+  const n = kind => s.grades.filter(g => g.kind === kind).length;
+  card.innerHTML = `
+    <a class="back" href="../">← All games</a>
+    <h2>${title}</h2>
+    ${lead}
+    <div class="statsline">
+      <div><b>${balanced}%</b>balanced</div>
+      <div><b>${n('early')}</b>early</div>
+      <div><b>${n('ontime')}</b>on time</div>
+      <div><b>${n('late')}</b>late</div>
+    </div>
+    <div class="best">${rec ? 'New best on '+s.T.name : bestText()}</div>
+    <button class="btn" id="again">Ski again</button>
+    <button class="btn ghost" id="menu">Change trail</button>`;
+  $('again').onclick = start; $('menu').onclick = showMenu;
+  overlay.hidden = false;
+}
+function showFall(){
+  const advice = s.fallInside ? 'Move to the new outside ski early, and give it more as the turn tightens.'
+                              : 'A straight or a gentle turn wants weight on both skis.';
+  results('Fell', `<p class="cause">${s.cause}</p><p>${advice}</p>`);
+}
+function showDone(){
+  const balanced = s.tRun > 0 ? s.tBal/s.tRun : 0, late = s.grades.filter(g => g.kind === 'late').map(g => g.turn);
+  const lead = late.length ? `Late onto the new outside ski in ${listTurns(late)}. Start moving across as the old turn finishes.`
+    : balanced >= 0.8 ? 'Outside ski every turn, and across early at every transition.'
+    : s.tIn > s.tOver ? 'Too much on the inside ski. Give the outside ski more as each turn tightens.'
+    : 'More weight on one ski than the turns needed. Gentle turns want more on both skis.';
+  results('Run complete', `<p>${lead}</p>`);
+}
+
+function pause(){
+  if (mode!=='run') return;
+  mode = 'paused'; input.keyDir = 0; endDrag();
+  card.innerHTML = `
+    <a class="back" href="../">← All games</a>
+    <h2>Paused</h2>
+    <p>${Math.round(s.tBal/Math.max(s.tRun,1e-9)*100) + '% balanced so far, ' + CO.turns.filter(t => t.s1 < s.dist).length + ' of ' + CO.turns.length + ' turns.'}</p>
+    <button class="btn" id="resume">Resume</button>
+    <button class="btn ghost" id="restart">Restart run</button>
+    <button class="btn ghost" id="menu">Change trail</button>`;
+  $('resume').onclick = resume; $('restart').onclick = start; $('menu').onclick = showMenu;
+  overlay.hidden = false;
+  $('resume').focus({preventScroll:true});
+}
+// the control is locked while paused, so the run picks up exactly where it stopped
+function resume(){ overlay.hidden = true; mode = 'run'; slider.focus({preventScroll:true}); last = performance.now(); }
+$('pause').onclick = pause;
+document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+
+// ---------- loop ----------
+let last = performance.now();
+function frame(now){
+  let dt = (now - last)/1000; last = now;
+  // a frame stamped at or before the last one (a start or resume lands mid-frame) moves nothing
+  dt = clamp(dt, 0, 1/30);
+  if (dt > 0){
+    if (mode==='run'){ step(dt); if (mode==='done') showDone(); }
+    else if (mode==='fall' || mode==='fallen') stepFall(dt);
+  }
+  draw(); drawTrace(); updateUI();
+  requestAnimationFrame(frame);
+}
+resize();
+showMenu();
+requestAnimationFrame(t => { last = t; frame(t); });
+})();
+</script>
+</body>
+</html>

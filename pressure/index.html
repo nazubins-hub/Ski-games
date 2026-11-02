@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Magnitude of Pressure</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --snow:#F3F7FA; --snow-shade:#D9E3EC; --ink:#17243A; --ink-soft:#5A6880;
+  --panel:#FFFFFF; --line:#C9D5E1; --good:#2B8A5E; --warn:#D08F00; --bad:#D22B40; --cool:#1E5BCC;
+  --sky:#E3EDF6; --ground:#FFFFFF; --groove:#9FB0C4; --ski:#1E5BCC; --boot:#17243A;
+  --scrim:rgba(243,247,250,.92);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --snow:#0E1828; --snow-shade:#1A2940; --ink:#E5EDF6; --ink-soft:#93A3BA;
+    --panel:#13213A; --line:#2A3C58; --good:#3FBF86; --warn:#F1B42F; --bad:#FF5C70; --cool:#5D8DFF;
+    --sky:#0E1828; --ground:#2A3B57; --groove:#4A5D7C; --ski:#5D8DFF; --boot:#0A1220;
+    --scrim:rgba(14,24,40,.9);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --snow:#0E1828; --snow-shade:#1A2940; --ink:#E5EDF6; --ink-soft:#93A3BA;
+  --panel:#13213A; --line:#2A3C58; --good:#3FBF86; --warn:#F1B42F; --bad:#FF5C70; --cool:#5D8DFF;
+  --sky:#0E1828; --ground:#2A3B57; --groove:#4A5D7C; --ski:#5D8DFF; --boot:#0A1220;
+  --scrim:rgba(14,24,40,.9);
+  color-scheme: dark;
+}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);}
+body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Barlow,"Helvetica Neue",Arial,sans-serif;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
+.app{position:relative;height:100%;max-width:520px;margin:0 auto;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;gap:10px;padding:8px 12px 6px}
+.back{display:inline-block;padding:6px 0;font:600 14px Barlow,sans-serif;color:var(--ink-soft);text-decoration:none;white-space:nowrap}
+.back:hover,.back:focus-visible{color:var(--ink);text-decoration:underline}
+.top h1{flex:1;margin:0;font:700 22px "Barlow Condensed","Arial Narrow",sans-serif;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.info{width:30px;height:30px;padding:0;border-radius:50%;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);font:700 15px Barlow,sans-serif;cursor:pointer}
+.chips{display:flex;gap:6px;padding:0 12px 6px}
+.chip{flex:1;font:600 14px Barlow,sans-serif;padding:7px 0;border-radius:8px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+.chip small{font-weight:500;color:var(--ink-soft)}
+.chip[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.stage{position:relative;flex:1;min-height:0}
+#view{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#view.active{cursor:grabbing}
+.reset{position:absolute;right:10px;top:10px;padding:6px 10px;border-radius:8px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);font:600 13px Barlow,sans-serif;cursor:pointer;opacity:.92}
+.flexnote{position:absolute;left:12px;top:12px;font-size:12px;color:var(--ink-soft);pointer-events:none}
+.readout{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center;padding:8px 16px 6px;border-top:1px solid var(--line);background:var(--panel)}
+.big{grid-row:span 2;font:700 44px "Barlow Condensed",sans-serif;line-height:.9;font-variant-numeric:tabular-nums}
+.big small{display:block;font:500 12px Barlow,sans-serif;color:var(--ink-soft);letter-spacing:.02em}
+#stateWord{font:700 20px "Barlow Condensed",sans-serif;line-height:1}
+.vals{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:12px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.vals b{color:var(--ink);font-weight:600}
+.pads{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:6px 12px 12px;background:var(--panel)}
+.pad{position:relative;height:118px;border-radius:14px;border:1.5px solid var(--line);background:var(--snow);touch-action:none;overflow:hidden;outline:none}
+.pad:focus-visible{box-shadow:0 0 0 3px var(--cool)}
+.pad.active{border-color:var(--ink)}
+.pad .lab{position:absolute;left:10px;top:8px;font:700 15px "Barlow Condensed",sans-serif;letter-spacing:.02em}
+.pad .val{position:absolute;right:10px;top:8px;font-size:12px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.pad .hint{position:absolute;left:0;right:0;bottom:7px;text-align:center;font-size:11px;color:var(--ink-soft)}
+.pad .rail{position:absolute;left:14px;right:14px;top:62px;height:4px;border-radius:2px;background:var(--snow-shade)}
+.pad .knob{position:absolute;top:62px;left:50%;width:46px;height:46px;margin:-21px 0 0 -23px;border-radius:50%;background:var(--panel);border:3px solid var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.18);display:grid;place-items:center}
+.pad .knob svg{display:block}
+@media (max-width:360px){ .top h1{font-size:18px} .back{font-size:13px} }
+.overlay{position:absolute;inset:0;z-index:2;display:flex;padding:20px;background:var(--scrim);overflow-y:auto}
+.overlay[hidden]{display:none}
+.card{max-width:360px;margin:auto}
+.card h2{font:700 40px "Barlow Condensed","Arial Narrow",sans-serif;margin:0 0 6px;line-height:.95}
+.card p{margin:0 0 12px;line-height:1.45;font-size:16px}
+.card .src{font-size:13px;color:var(--ink-soft);border-left:3px solid var(--cool);padding-left:10px}
+.card ul{margin:0 0 14px;padding-left:18px;font-size:14px;line-height:1.45;color:var(--ink-soft)}
+.card li b{color:var(--ink)}
+.btn{display:block;width:100%;font:700 22px "Barlow Condensed",sans-serif;padding:12px;border-radius:10px;border:0;background:var(--ink);color:var(--snow);cursor:pointer}
+</style>
+</head>
+<body>
+<main class="app">
+  <div class="top">
+    <a class="back" href="../">← All games</a>
+    <h1>Magnitude of Pressure</h1>
+    <button class="info" id="info" aria-label="How it works">?</button>
+  </div>
+  <div class="chips" role="group" aria-label="Speed">
+    <button class="chip" data-k="slow">Slow <small>20</small></button>
+    <button class="chip" data-k="medium">Medium <small>35</small></button>
+    <button class="chip" data-k="fast">Fast <small>50 km/h</small></button>
+  </div>
+
+  <div class="stage" id="stage">
+    <canvas id="view" aria-label="3D view of a pair of skis moving through snow"></canvas>
+    <span class="flexnote">ski flex shown 6×</span>
+    <button class="reset" id="reset">Reset view</button>
+  </div>
+
+  <section class="readout" aria-live="off">
+    <div class="big" id="press">1.0×<small>body weight</small></div>
+    <div id="stateWord">flat glide</div>
+    <div class="vals">
+      <span>Edge <b id="vEdge">0°</b></span><span>Rotation <b id="vRot">0°/s</b></span><span>Skid <b id="vSkid">0°</b></span>
+      <span>Radius <b id="vRad">–</b></span><span>Speed <b id="vSpd">35</b></span>
+    </div>
+  </section>
+
+  <section class="pads">
+    <div class="pad" id="padEdge" tabindex="0" role="slider" aria-label="Edge angle" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
+      <span class="lab">Edge</span><span class="val" id="edgeVal">flat</span>
+      <div class="rail"></div>
+      <div class="knob" id="knobEdge"><svg width="30" height="30" viewBox="-15 -15 30 30" aria-hidden="true"><g id="iconEdge"><rect x="-11" y="-2.5" width="22" height="5" rx="1.5" fill="currentColor"/></g><line x1="-14" y1="7" x2="14" y2="7" stroke="currentColor" stroke-width="1" opacity=".4"/></svg></div>
+      <span class="hint">drag ← tip left · tip right →</span>
+    </div>
+    <div class="pad" id="padRot" tabindex="0" role="slider" aria-label="Rotation" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
+      <span class="lab">Rotate</span><span class="val" id="rotVal">0°/s</span>
+      <div class="rail"></div>
+      <div class="knob" id="knobRot"><svg width="30" height="30" viewBox="-15 -15 30 30" aria-hidden="true"><g id="iconRot"><path d="M-3 12 L-3.5 -9 Q0 -14 3.5 -9 L3 12 Z" fill="currentColor"/></g></svg></div>
+      <span class="hint">drag ← turn left · turn right →</span>
+    </div>
+  </section>
+  <div class="overlay" id="overlay"><div class="card" id="card">
+    <h2>Magnitude of Pressure</h2>
+    <p class="src">Control how much pressure the skis build against the snow.</p>
+    <p>Two thumbs: <b>Edge</b> tips the skis, <b>Rotate</b> turns them. Use them alone and together and watch the skis bend, the tracks they leave and the push from the snow.</p>
+    <ul>
+      <li><b>Edge only:</b> a carve. The sidecut bends the ski into a clean arc; more edge, tighter turn, more pressure.</li>
+      <li><b>Rotate only:</b> a pivot slip. The flat skis slide sideways with almost no pressure.</li>
+      <li><b>Both:</b> a skid. The edge bites into the slide, pressure builds and speed scrubs off. Rotate hard, then edge: an edge set.</li>
+      <li>Speed multiplies it all. Drag the view to look from any side.</li>
+    </ul>
+    <button class="btn" id="go">Start</button>
+  </div></div>
+</main>
+
+<script>
+(function(){
+const G = 9.81, R_SC = 15;       // m: the skis' sidecut radius
+const EDGE_MAX = 65, ROT_MAX = 150, BETA_MAX = 75;   // deg, deg/s, deg: furthest the skis pivot off their travel
+const L = 1.7, TIP_W = 0.115, WAIST_W = 0.07, TAIL_W = 0.105, THICK = 0.03, STANCE = 0.15, NSEG = 16;
+const FLEX_X = 6;                // ski flex is drawn this many times its real size
+const SPEEDS = { slow:20, medium:35, fast:50 };
+const DEG = Math.PI/180;
+
+const $ = id => document.getElementById(id);
+const cv = $('view'), ctx = cv.getContext('2d');
+const overlay = $('overlay');
+
+let C = {};
+function readColors(){
+  const cs = getComputedStyle(document.documentElement);
+  ['snow','snow-shade','ink','ink-soft','panel','line','good','warn','bad','cool','sky','ground','groove','ski','boot']
+    .forEach(k => C[k] = cs.getPropertyValue('--'+k).trim());
+}
+readColors();
+try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); }catch(e){}
+
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  const r = cv.getBoundingClientRect();
+  W = r.width; H = r.height;
+  cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+}
+window.addEventListener('resize', resize);
+
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const wrap = a => a - 2*Math.PI*Math.round(a/(2*Math.PI));
+const hex = c => { const m = /^#?([0-9a-f]{6})$/i.exec(c); const n = m ? parseInt(m[1], 16) : 0; return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+const mix = (a, b, t) => { const p = hex(a), q = hex(b); return `rgb(${p.map((v, i) => Math.round(v + (q[i] - v)*t)).join(',')})`; };
+const shadeRGB = (rgb, k) => { const m = /\d+/g, v = rgb.match(m).map(Number); return `rgb(${v.slice(0,3).map(x => Math.round(x*k)).join(',')})`; };
+// pressure as a colour: green at one body weight, amber at two, red at three
+const heat = p => p < 2 ? mix(C.good, C.warn, clamp(p - 1, 0, 1)) : mix(C.warn, C.bad, clamp(p - 2, 0, 1));
+
+// ---------- vectors ----------
+const add = (a, b) => [a[0]+b[0], a[1]+b[1], a[2]+b[2]], sub = (a, b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+const mul = (a, k) => [a[0]*k, a[1]*k, a[2]*k], dot = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+const cross = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+const norm = a => { const l = Math.hypot(...a) || 1; return [a[0]/l, a[1]/l, a[2]/l]; };
+const UP = [0, 1, 0];
+// a direction on the snow: 0 is straight ahead (+z), + turns left (toward -x)
+const dirOf = a => [-Math.sin(a), 0, Math.cos(a)], rightOf = a => [Math.cos(a), 0, Math.sin(a)];
+
+// ---------- state ----------
+let speedKey = 'medium';
+try{ const saved = localStorage.getItem('pressure.speed'); if (saved && SPEEDS[saved]) speedKey = saved; }catch(e){}
+const pads = { edge:{ el:$('padEdge'), knob:$('knobEdge'), v:0, id:null, x0:0, key:0 }, rot:{ el:$('padRot'), knob:$('knobRot'), v:0, id:null, x0:0, key:0 } };
+const s = { pos:[0,0,0], v:SPEEDS[speedKey]/3.6, phi:0, psi:0, beta:0, theta:0, turn:0, a:0, P:1, Pprev:1, Prate:0, setT:0,
+            state:'flat glide', tracks:[[], []], spray:[], lastTrack:null, camPhi:0, camYaw:0.6, camPitch:30*DEG, bend:[0,0], split:[0.5,0.5] };
+
+// ---------- pads: one finger each, so two thumbs work at once ----------
+for (const [name, pd] of Object.entries(pads)){
+  pd.el.addEventListener('pointerdown', e => {
+    if (!overlay.hidden || pd.id !== null) return;    // a second finger on the same pad is ignored
+    pd.el.setPointerCapture(e.pointerId); pd.id = e.pointerId; pd.x0 = e.clientX - pd.v*pd.el.clientWidth*0.4;
+    pd.el.classList.add('active'); e.preventDefault();
+  });
+  pd.el.addEventListener('pointermove', e => {
+    if (e.pointerId !== pd.id) return;
+    pd.v = clamp((e.clientX - pd.x0)/(pd.el.clientWidth*0.4), -1, 1);
+  });
+  const end = e => { if (e.pointerId !== pd.id) return; pd.id = null; pd.el.classList.remove('active'); };
+  pd.el.addEventListener('pointerup', end); pd.el.addEventListener('pointercancel', end); pd.el.addEventListener('lostpointercapture', end);
+}
+// keys: A/D tip the skis, the arrows turn them; both spring back like the pads
+window.addEventListener('keydown', e => {
+  if (!overlay.hidden){
+    if (e.key===' ' || e.key==='Enter'){ const ae = document.activeElement; if (!(ae && ae.closest && ae.closest('button, a'))){ $('go').click(); e.preventDefault(); } }
+    return;
+  }
+  const k = e.key.toLowerCase();
+  if (k==='a') pads.edge.key = -1; else if (k==='d') pads.edge.key = 1;
+  else if (e.key==='ArrowLeft') pads.rot.key = -1; else if (e.key==='ArrowRight') pads.rot.key = 1; else return;
+  e.preventDefault();
+});
+window.addEventListener('keyup', e => {
+  const k = e.key.toLowerCase();
+  if ((k==='a' && pads.edge.key<0) || (k==='d' && pads.edge.key>0)) pads.edge.key = 0;
+  if ((e.key==='ArrowLeft' && pads.rot.key<0) || (e.key==='ArrowRight' && pads.rot.key>0)) pads.rot.key = 0;
+});
+
+// ---------- the view: drag to orbit, double-tap or the button to reset ----------
+const VIEW0 = { yaw:0.6, pitch:30*DEG };
+let orbit = null, lastTap = 0;
+cv.addEventListener('pointerdown', e => {
+  if (orbit) return;
+  const now = performance.now();
+  if (now - lastTap < 300){ resetView(); lastTap = 0; return; }
+  lastTap = now;
+  cv.setPointerCapture(e.pointerId); orbit = { id:e.pointerId, x:e.clientX, y:e.clientY }; cv.classList.add('active'); e.preventDefault();
+});
+cv.addEventListener('pointermove', e => {
+  if (!orbit || e.pointerId !== orbit.id) return;
+  s.camYaw += (e.clientX - orbit.x)*0.01;
+  s.camPitch = clamp(s.camPitch + (e.clientY - orbit.y)*0.006, 10*DEG, 80*DEG);
+  orbit.x = e.clientX; orbit.y = e.clientY;
+});
+const endOrbit = e => { if (orbit && e.pointerId === orbit.id){ orbit = null; cv.classList.remove('active'); } };
+cv.addEventListener('pointerup', endOrbit); cv.addEventListener('pointercancel', endOrbit); cv.addEventListener('lostpointercapture', endOrbit);
+function resetView(){ s.camYaw = VIEW0.yaw; s.camPitch = VIEW0.pitch; }
+$('reset').onclick = resetView;
+
+// ---------- simulation ----------
+function step(dt){
+  if (!(dt > 0)) return;
+  for (const pd of Object.values(pads)){
+    if (pd.id === null && pd.key) pd.v = clamp(pd.v + pd.key*4*dt, -1, 1);
+    else if (pd.id === null) pd.v -= pd.v*(1 - Math.exp(-dt/0.08));      // springs back to centre
+  }
+  const vT = SPEEDS[speedKey]/3.6;
+  // tipping the skis takes a moment; turning input is a twisting rate. The pads read right as +, the physics left
+  s.theta += (-pads.edge.v*EDGE_MAX*DEG - s.theta)*(1 - Math.exp(-dt/0.12));
+  const th = Math.abs(s.theta), u = -pads.rot.v, edgeSide = Math.sign(s.theta);
+  // carving: an edged ski follows its sidecut, a radius of R_SC*cos(edge)
+  const carve = th > 3*DEG ? edgeSide*s.v/(R_SC*Math.cos(th)) : 0;
+  let twist = u*ROT_MAX*DEG;
+  if (!u) twist = -s.beta*1.2;                                   // stop twisting and the skis line back up with their travel
+  if ((s.beta >= BETA_MAX*DEG && twist > 0) || (s.beta <= -BETA_MAX*DEG && twist < 0)) twist = 0;
+  s.psi += (carve + twist)*dt;
+  s.beta = wrap(s.psi - s.phi);
+  // grip: the snow pulls the travel round toward where the skis point, much harder with an edge in it
+  const K = 0.6 + 9*Math.sin(th);
+  let turn = carve + K*Math.sin(s.beta), a = s.v*turn;
+  const aMax = (0.3 + 3*Math.sin(th))*G;
+  if (Math.abs(a) > aMax){ a = Math.sign(a)*aMax; turn = a/Math.max(s.v, 0.5); }
+  s.phi = wrap(s.phi + turn*dt); s.turn = turn; s.a = a;
+  s.beta = wrap(s.psi - s.phi);
+  // skidding scrubs speed; the slope gives it back
+  const skid = Math.abs(Math.sin(s.beta))*(0.3 + 2.5*Math.sin(th));
+  s.v = Math.max(0.5, s.v + (-4*skid - 0.002*s.v*s.v + 0.5*(vT - s.v))*dt);
+  s.pos = add(s.pos, mul(dirOf(s.phi), s.v*dt));
+
+  // pressure: what the snow pushes back with, gravity and the turn together, in body weights
+  s.Pprev = s.P; s.P = Math.sqrt(1 + (a/G)**2);
+  s.Prate += ((s.P - s.Pprev)/dt - s.Prate)*(1 - Math.exp(-dt/0.06));
+  const b = Math.abs(s.beta);
+  if (s.Prate > 4 && b > 15*DEG) s.setT = 0.6;
+  s.setT = Math.max(0, s.setT - dt);
+  s.state = s.setT > 0 ? 'edge set' : th < 5*DEG && b < 5*DEG ? 'flat glide' : th < 12*DEG && b > 8*DEG ? 'pivot slip'
+          : b > 6*DEG && th >= 12*DEG ? 'skid' : b < 4*DEG && th >= 8*DEG ? 'carve' : th < 12*DEG ? 'flat glide' : 'skid';
+  // the outside ski (the right one in a left turn) takes more of it the harder the turn pulls, up to 65%
+  const out = 0.5 + 0.15*clamp(Math.abs(a)/(0.5*G), 0, 1);
+  s.split = a > 0 ? [1 - out, out] : [out, 1 - out];
+  s.bend = s.split.map(sh => {
+    const Pski = s.P*sh*2;                                       // 1 is this ski's share of standing still
+    return { edged: clamp((Pski - 0.8)/1.5, 0, 1)*Math.min(1, Math.sin(th)/0.3), load: clamp(Pski, 0, 1) };
+  });
+
+  // tracks: a groove for a carve, a brushed band as wide as the slide for a skid
+  const sw = L*Math.abs(Math.sin(s.beta));
+  if (!s.lastTrack || Math.hypot(s.pos[0] - s.lastTrack[0], s.pos[2] - s.lastTrack[2]) > 0.12){
+    const r = rightOf(s.psi);
+    [-1, 1].forEach((sd, i) => {
+      s.tracks[i].push({ p:add(s.pos, mul(r, sd*STANCE)), w:sw, n:rightOf(s.phi) });
+      if (s.tracks[i].length > 500) s.tracks[i].shift();
+    });
+    s.lastTrack = s.pos.slice();
+  }
+  // spray: thrown off the edges in proportion to how hard they scrape
+  const thrown = skid*s.v*(s.setT > 0 ? 6 : 1.4);
+  for (let i = 0; i < 2; i++) if (Math.random() < thrown*dt){
+    const sd = i ? 1 : -1, r = rightOf(s.psi), side = mul(rightOf(s.phi), -Math.sign(s.beta || 1));
+    const o = add(add(s.pos, mul(r, sd*STANCE)), mul(dirOf(s.psi), (Math.random() - .5)*L*0.8));
+    s.spray.push({ p:[o[0], 0.02, o[2]], v:add(add(mul(dirOf(s.phi), s.v*0.5), mul(side, 2 + Math.random()*3)), [0, 1.5 + Math.random()*2.5, 0]), life:0.9 });
+  }
+  s.spray.forEach(q => { q.v[1] -= G*dt; q.p = add(q.p, mul(q.v, dt)); if (q.p[1] < 0){ q.p[1] = 0; q.life = Math.min(q.life, 0.15); } q.life -= dt; });
+  s.spray = s.spray.filter(q => q.life > 0);
+  s.camPhi += wrap(s.phi - s.camPhi)*(1 - Math.exp(-dt/0.6));
+}
+
+// ---------- camera and projection ----------
+let cam = null;
+function setCamera(){
+  const target = add(s.pos, [0, 0.12, 0]), dist = 3.9;
+  const h = dirOf(s.camPhi + Math.PI + s.camYaw);                // behind the skis, swung to one side
+  const pos = add(target, add(mul(h, dist*Math.cos(s.camPitch)), [0, dist*Math.sin(s.camPitch), 0]));
+  const F = norm(sub(target, pos)), R = norm(cross(UP, F)), U = cross(F, R);
+  cam = { pos, F, R, U, f: Math.min(W, H)*1.15, cx: W/2, cy: H*0.52 };
+}
+function proj(p){
+  const v = sub(p, cam.pos), z = dot(v, cam.F);
+  return z < 0.25 ? null : [cam.cx + cam.f*dot(v, cam.R)/z, cam.cy - cam.f*dot(v, cam.U)/z, z];
+}
+
+// ---------- ski geometry ----------
+// a ski as rows across its length: each row is its two edges, top and bottom, in the world.
+// The base bends into the arc the edge carves (toward the snow side, tips lifting), scaled by its pressure
+function skiRows(i){
+  const sd = i ? 1 : -1, f = dirOf(s.psi), r = rightOf(s.psi), th = s.theta;
+  const up = add(mul(UP, Math.cos(th)), mul(r, -Math.sin(th))), across = add(mul(r, Math.cos(th)), mul(UP, Math.sin(th)));
+  const base = add(s.pos, mul(r, sd*STANCE)), bd = s.bend[i];
+  const sag = bd.edged*(L*L/8)/R_SC*FLEX_X;                          // sagitta of the carved arc
+  const camber = 0.004*(1 - bd.load)*FLEX_X;                          // unweighted, the middle sits up a little
+  const rows = [];
+  for (let k = 0; k <= NSEG; k++){
+    const t = -L/2 + L*k/NSEG, u = 2*t/L;
+    const w = (t >= 0 ? WAIST_W + (TIP_W - WAIST_W)*u*u : WAIST_W + (TAIL_W - WAIST_W)*u*u)/2;
+    const lift = sag*u*u - camber*(1 - u*u) + (t > L/2 - 0.16 ? (t - (L/2 - 0.16))**2*3.2 : 0) + (t < -L/2 + 0.08 ? (-L/2 + 0.08 - t)**2*2 : 0);
+    const c = add(add(base, mul(f, t)), mul(up, lift + 0.004));
+    // the tipped ski stands on its downhill edge: raise the whole cross-section so that edge touches the snow
+    const rise = Math.sin(th)*w;
+    const L0 = add(add(c, mul(across, -w)), [0, rise, 0]), R0 = add(add(c, mul(across, w)), [0, rise, 0]);
+    rows.push({ bl:L0, br:R0, tl:add(L0, mul(up, THICK)), tr:add(R0, mul(up, THICK)), t, c, up });
+  }
+  return rows;
+}
+
+// ---------- drawing ----------
+const LIGHT = norm([-0.45, 0.85, -0.3]);
+function draw(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  setCamera();
+  // sky above the horizon when the view is low, snow below
+  const hz = cam.cy - cam.f*Math.tan(s.camPitch);
+  ctx.fillStyle = C.ground; ctx.fillRect(0, 0, W, H);
+  if (hz > 0){ const g = ctx.createLinearGradient(0, 0, 0, hz); g.addColorStop(0, C.sky); g.addColorStop(1, C.snow); ctx.fillStyle = g; ctx.fillRect(0, 0, W, hz); }
+
+  // corduroy fixed to the world, so it streams past
+  ctx.strokeStyle = C['snow-shade']; ctx.lineWidth = 1;
+  const gx = Math.round(s.pos[0]), gz = Math.round(s.pos[2]);
+  for (let k = -12; k <= 12; k++){
+    for (const along of [0, 1]){
+      ctx.beginPath(); let pen = false;
+      for (let j = -12; j <= 12; j += 0.5){
+        const p = along ? [gx + k, 0, gz + j] : [gx + j, 0, gz + k], q = proj(p);
+        if (!q){ pen = false; continue; }
+        pen ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); pen = true;
+      }
+      ctx.globalAlpha = along ? .55 : .3; ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // tracks
+  for (const tr of s.tracks){
+    for (let i = 1; i < tr.length; i++){
+      const a = tr[i-1], b = tr[i];
+      if (b.w > 0.08){                                                // a skid brushes a band as wide as the slide
+        const ha = mul(a.n, a.w/2), hb = mul(b.n, b.w/2);
+        const p = [proj(sub(a.p, ha)), proj(add(a.p, ha)), proj(add(b.p, hb)), proj(sub(b.p, hb))];
+        if (p.some(x => !x)) continue;
+        ctx.fillStyle = C.groove; ctx.globalAlpha = .22;
+        ctx.beginPath(); p.forEach((x, j) => j ? ctx.lineTo(x[0], x[1]) : ctx.moveTo(x[0], x[1])); ctx.closePath(); ctx.fill();
+      } else {
+        const pa = proj(a.p), pb = proj(b.p); if (!pa || !pb) continue;
+        ctx.strokeStyle = C.groove; ctx.globalAlpha = .9; ctx.lineWidth = Math.max(1, 0.03*cam.f/pb[2]);
+        ctx.beginPath(); ctx.moveTo(pa[0], pa[1]); ctx.lineTo(pb[0], pb[1]); ctx.stroke();
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // shadows, straight down onto the snow
+  const skis = [skiRows(0), skiRows(1)];
+  ctx.fillStyle = C.ink; ctx.globalAlpha = .12;
+  for (const rows of skis){
+    const outline = rows.map(r => [r.bl[0], 0, r.bl[2]]).concat(rows.slice().reverse().map(r => [r.br[0], 0, r.br[2]])).map(proj);
+    if (outline.some(x => !x)) continue;
+    ctx.beginPath(); outline.forEach((x, j) => j ? ctx.lineTo(x[0], x[1]) : ctx.moveTo(x[0], x[1])); ctx.closePath(); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // the skis and boots as faces, far to near
+  const faces = [];
+  const quad = (pts, col) => { const p = pts.map(proj); if (p.some(x => !x)) return;
+    const n = norm(cross(sub(pts[1], pts[0]), sub(pts[3], pts[0])));
+    const lit = 0.6 + 0.4*Math.abs(dot(n, LIGHT));
+    faces.push({ p, z: p.reduce((t, x) => t + x[2], 0)/p.length, col, lit }); };
+  skis.forEach((rows, i) => {
+    // the top sheet takes on the colour of the pressure under this ski
+    const load = s.P*s.split[i]*2, topCol = load > 1.05 ? mixRGB(C.ski, heat(load), clamp((load - 1)/1.2, 0, .85)) : hexRGB(C.ski);
+    for (let k = 0; k < NSEG; k++){
+      const a = rows[k], b = rows[k+1];
+      quad([a.tl, a.tr, b.tr, b.tl], topCol);
+      quad([a.bl, a.tl, b.tl, b.bl], hexRGB(C.boot));
+      quad([a.tr, a.br, b.br, b.tr], hexRGB(C.boot));
+    }
+    const tipR = rows[NSEG]; quad([tipR.bl, tipR.br, tipR.tr, tipR.tl], hexRGB(C.boot));
+    // a boot block over the binding, tipped with the ski
+    const mid = rows.filter(r => r.t > -0.16 && r.t < 0.18), r0 = mid[0], r1 = mid[mid.length - 1];
+    const hgt = mul(r0.up, 0.24), inset = (p, q, k) => add(p, mul(sub(q, p), k));
+    const b0 = [inset(r0.tl, r0.tr, .1), inset(r0.tr, r0.tl, .1), inset(r1.tr, r1.tl, .1), inset(r1.tl, r1.tr, .1)], b1 = b0.map(p => add(p, hgt));
+    quad(b1, hexRGB(C.boot));
+    for (let j = 0; j < 4; j++) quad([b0[j], b0[(j+1)%4], b1[(j+1)%4], b1[j]], hexRGB(C.boot));
+  });
+  faces.sort((a, b) => b.z - a.z);
+  for (const f of faces){
+    ctx.fillStyle = shadeRGB(f.col, f.lit);
+    ctx.beginPath(); f.p.forEach((x, j) => j ? ctx.lineTo(x[0], x[1]) : ctx.moveTo(x[0], x[1])); ctx.closePath(); ctx.fill();
+  }
+
+  // spray
+  ctx.fillStyle = C.groove;
+  for (const q of s.spray){ const p = proj(q.p); if (!p) continue; ctx.globalAlpha = clamp(q.life, 0, 1); ctx.beginPath(); ctx.arc(p[0], p[1], Math.max(1.2, 0.025*cam.f/p[2]), 0, Math.PI*2); ctx.fill(); }
+  ctx.globalAlpha = 1;
+
+  drawForce(skis);
+}
+const hexRGB = c => `rgb(${hex(c).join(',')})`;
+const mixRGB = (a, b, t) => { const p = hex(a), q = b.match(/\d+/g).map(Number); return `rgb(${p.map((v, i) => Math.round(v + (q[i] - v)*t)).join(',')})`; };
+
+// the snow's push on the skier: straight up when gliding, tipped toward the middle of the turn and longer as it tightens
+function drawForce(skis){
+  const out = s.split[1] >= s.split[0] ? 1 : 0, rows = skis[out], mid = rows[NSEG/2];
+  const foot = [mid.c[0], 0.02, mid.c[2]];
+  const lean = mul(rightOf(s.phi), -s.a/G);                           // toward the inside of the turn
+  const vec = mul(norm(add(UP, lean)), 0.55*s.P);
+  const tip = add(foot, vec), p0 = proj(foot), p1 = proj(tip);
+  if (!p0 || !p1) return;
+  const col = heat(s.P);
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+  const ang = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]), hs = 12;
+  ctx.beginPath(); ctx.moveTo(p1[0] + Math.cos(ang)*4, p1[1] + Math.sin(ang)*4);
+  ctx.lineTo(p1[0] - Math.cos(ang - .5)*hs, p1[1] - Math.sin(ang - .5)*hs); ctx.lineTo(p1[0] - Math.cos(ang + .5)*hs, p1[1] - Math.sin(ang + .5)*hs); ctx.closePath(); ctx.fill();
+  // the label beside the arrowhead, kept inside the view
+  ctx.font = '700 15px "Barlow Condensed", sans-serif'; ctx.textAlign = 'left';
+  const label = s.P.toFixed(1) + '× body weight', tw = ctx.measureText(label).width;
+  const lx = clamp(p1[0] < W/2 ? p1[0] - 10 - tw : p1[0] + 10, 8, W - 8 - tw), ly = clamp(p1[1] - 4, 54, H - 8);
+  ctx.fillStyle = C.ink; ctx.fillText(label, lx, ly);
+}
+
+// ---------- readouts and pads ----------
+const STATE_COL = { 'flat glide':'ink-soft', 'pivot slip':'cool', 'skid':'warn', 'carve':'good', 'edge set':'bad' };
+function updateUI(){
+  const pr = $('press'); pr.firstChild.nodeValue = s.P.toFixed(1) + '×'; pr.style.color = heat(s.P);
+  const sw = $('stateWord'); sw.textContent = s.state; sw.style.color = C[STATE_COL[s.state]];
+  const e = Math.round(s.theta/DEG), sk = Math.round(s.beta/DEG);
+  $('vEdge').textContent = Math.abs(e) < 2 ? 'flat' : Math.abs(e) + '° ' + (e > 0 ? 'L' : 'R');
+  $('vRot').textContent = Math.round(Math.abs(pads.rot.v)*ROT_MAX) + '°/s';
+  $('vSkid').textContent = Math.abs(sk) + '°';
+  $('vRad').textContent = Math.abs(s.turn) > 0.03 ? Math.round(s.v/Math.abs(s.turn)) + ' m' : '–';
+  $('vSpd').textContent = Math.round(s.v*3.6) + ' km/h';
+  for (const [name, pd] of Object.entries(pads)){
+    pd.knob.style.left = (pd.el.clientWidth/2 + pd.v*(pd.el.clientWidth/2 - 30)) + 'px';   // full travel stays inside the pad
+    pd.el.setAttribute('aria-valuenow', Math.round(pd.v*100));
+  }
+  $('edgeVal').textContent = Math.abs(e) < 2 ? 'flat' : Math.abs(e) + '° ' + (e > 0 ? 'left' : 'right');
+  const rv = Math.round(Math.abs(pads.rot.v)*ROT_MAX);
+  $('rotVal').textContent = rv < 3 ? '0°/s' : rv + '°/s ' + (pads.rot.v < 0 ? 'left' : 'right');
+  $('iconEdge').setAttribute('transform', `rotate(${-s.theta/DEG})`);       // the cross-section, tipping
+  $('iconRot').setAttribute('transform', `rotate(${-s.beta/DEG})`);         // the ski from above, against its travel
+}
+
+// ---------- speed and the intro card ----------
+const chips = document.querySelectorAll('.chip');
+function setSpeed(k){
+  speedKey = k; try{ localStorage.setItem('pressure.speed', k); }catch(e){}
+  chips.forEach(c => c.setAttribute('aria-pressed', c.dataset.k === k));
+}
+chips.forEach(c => c.onclick = () => setSpeed(c.dataset.k));
+setSpeed(speedKey);
+$('go').onclick = () => { overlay.hidden = true; };
+$('info').onclick = () => { overlay.hidden = false; $('go').focus({preventScroll:true}); };
+
+// ---------- loop ----------
+let last = performance.now();
+function frame(now){
+  let dt = (now - last)/1000; last = now;
+  dt = clamp(dt, 0, 1/30);
+  if (dt > 0) step(dt);
+  draw(); updateUI();
+  requestAnimationFrame(frame);
+}
+resize();
+requestAnimationFrame(t => { last = t; frame(t); });
+})();
+</script>
+</body>
+</html>

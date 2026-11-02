@@ -73,7 +73,7 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
 .controls{padding:8px 16px 14px;border-top:1px solid var(--line);background:var(--panel)}
 .meter-row{display:grid;grid-template-columns:auto 1fr 96px;gap:10px;align-items:center}
 .meter{position:relative;height:12px;border-radius:6px;overflow:hidden;opacity:.9;
-  background:linear-gradient(to right,var(--bad) 0 var(--a1),var(--warn) var(--a1) var(--b1),var(--butter) var(--b1) var(--b2),var(--warn) var(--b2) var(--a2),var(--good) var(--a2) var(--a3),var(--warn) var(--a3) var(--b3),var(--butter) var(--b3) var(--b4),var(--warn) var(--b4) var(--a4),var(--bad) var(--a4) 100%)}
+  background:linear-gradient(to right,var(--bad) 0 var(--b1),var(--butter) var(--b1) var(--b2),var(--bad) var(--b2) var(--a1),var(--warn) var(--a1) var(--a2),var(--good) var(--a2) var(--a3),var(--warn) var(--a3) var(--a4),var(--bad) var(--a4) var(--b3),var(--butter) var(--b3) var(--b4),var(--bad) var(--b4) 100%)}
 .meter i{position:absolute;top:-2px;bottom:-2px;width:4px;margin-left:-2px;background:var(--ink);border-radius:2px;left:50%}
 .meter-ends{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-soft);margin:2px 106px 0 calc(10px + 4.6em)}
 #meterWord{font:700 18px "Barlow Condensed",sans-serif;text-align:right}
@@ -131,9 +131,10 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
 <script>
 (function(){
 const U_MAX = 30;                // deg: how far the hips can move forward or back of centre
-const C1 = 6, C2 = 14, C3 = 26;  // |balance| deg: centred, off-centre, gone (fall)
-const B1 = 8, B2 = 14;           // |balance| deg: the butter band, from past centred to the edge of too far
-const HOLD1 = 6.5;               // once a press is on, it holds down to here, so it can be kept
+const C1 = 6, C2 = 14, C3 = 30;  // |balance| deg: centred, off-centre, gone (fall)
+const B1 = 15, B2 = 21;          // |balance| deg: the butter band, out past where too far begins
+const HOLD1 = 13;                // once a press is on, it holds down to here, so it can be kept
+const SETTLE = 35;               // balance/s while held steady in the band before the press takes; unsteady there, twice that
 const STEADY = 15;               // deg/s: steadier than this in the band starts a press; drifting through doesn't
 const PRESS_IN = 0.3;            // s held steady before the ski bends
 const PRESS_COUNT = 0.5;         // s a press must be held to count
@@ -190,6 +191,7 @@ function resize(){
 window.addEventListener('resize', resize);
 
 const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const smooth01 = u => { u = clamp(u, 0, 1); return u*u*(3 - 2*u); };
 function hash(n){ const x = Math.sin(n*127.1+311.7)*43758.5453; return x - Math.floor(x); }
 
 // ---------- terrain ----------
@@ -241,7 +243,7 @@ function newRun(){
   const th0 = sample(TR.th, 0);
   s = { T, x:0, y:sample(TR.h, 0), v:T.name==='Green' ? 9 : T.name==='Blue' ? 12 : 15, skiAng:th0,
         air:false, airStart:0, vx:0, vy:0, d:0, hips:0, phi:0, zone:0, bal:100,
-        press:0, pressSide:1, pressStart:0, pressLift:0, bandT:0, bandSide:0, presses:0, pressTime:0, phiRate:0, prevPhi:0, hinted:false,
+        flex:0, press:0, pressSide:1, pressStart:0, pressLift:0, bandT:0, bandSide:0, presses:0, pressTime:0, phiRate:0, prevPhi:0, hinted:false,
         spin:0, spinAcc:0, takeoffPhi:0, takeoffAng:0, takeoffs:0, cleanTakeoffs:0, takeoffSeen:true, fallTakeoff:false,
         tRun:0, tCentred:0, tBack:0, tFwd:0, airT:0, jumps:0, landT:-1, landPending:false, warned:{},
         trace:[], flash:null, fallT:0, fallDir:0, cause:'', fallBack:false, fallLanded:false, spray:[] };
@@ -362,7 +364,7 @@ function step(dt){
 
   // the butter band, past centred. Hold steady in it on the snow and the skis flex from the tip (nose press)
   // or the tail (tail press). Drifting through it as the terrain shoves you is not a press
-  s.phiRate += ((s.phi - s.prevPhi)/dt - s.phiRate)*(1 - Math.exp(-dt/0.1)); s.prevPhi = s.phi;
+  s.phiRate += ((s.phi - s.prevPhi)/dt - s.phiRate)*(1 - Math.exp(-dt/0.05)); s.prevPhi = s.phi;
   const side = s.phi > 0 ? 1 : -1;
   const steadyIn = !s.air && a >= B1 && a < B2 && Math.abs(s.phiRate) < STEADY;
   if (steadyIn && side === s.bandSide) s.bandT += dt; else { s.bandSide = steadyIn ? side : 0; s.bandT = steadyIn ? dt : 0; }
@@ -381,12 +383,18 @@ function step(dt){
     s.hinted = true; s.flash = {text:'Smooth snow: try a press', t:2.2, c:C.butter};
   }
   s.pressLift += ((s.press ? 1 : 0) - s.pressLift)*(1 - Math.exp(-dt/0.12));
+  // the ski flexes progressively as the weight moves along it: forward loads the shovel and lightens the tail,
+  // back the reverse, until in the band the far end comes off the snow. In the air it carries no load
+  const flexTo = s.air ? 0 : Math.sign(s.phi)*smooth01((a - 2)/(B1 - 2));
+  s.flex += (flexTo - s.flex)*(1 - Math.exp(-dt/0.08));
 
   // balance drains only with weight on the skis
   if (!s.air){
     if (zone===0) s.bal += 10*dt;
     else if (s.press) {}                         // a held press is controlled: it costs no balance
-    else if (zone===1) s.bal -= (20 + (a-C1)/(C2-C1)*50)*(steadyIn ? 0.5 : 1)*dt;   // settling into one costs half
+    else if (steadyIn) s.bal -= SETTLE*dt;        // settling into one: committed, so it costs far less than the red around it
+    else if (!s.air && a >= B1 && a < B2) s.bal -= 2*SETTLE*dt;
+    else if (zone===1) s.bal -= (20 + (a-C1)/(C2-C1)*50)*dt;
     else s.bal -= (150 + (a-C2)*10)*dt;
   }
   s.bal = Math.min(100, s.bal);
@@ -579,19 +587,23 @@ function tilted(pv, [x, y]){
   return [pv.x + dx*c - y*sn, dx*sn + y*c];
 }
 function tiltAbout(P, pv){ const [px, py] = P(pv.x, 0); ctx.translate(px, py); ctx.rotate(pv.a); ctx.translate(-px, -py); }
-// a ski with a turned-up tip, bowed onto its contact point in a press
-function skiPath(P, tail, tip, pv){
+const FLEX_RISE = 0.16;          // m the light end of the ski lifts at full flex, before the press tilts the skier
+// a ski with a turned-up tip. flex (-1..1) bends it with the weight: forward loads the shovel and the tail
+// lightens and curls up, back the reverse. In a press the boots come up too and the ski bows onto its contact point
+function skiPath(P, tail, tip, pv, flex){
   const T = q => P(...tilted(pv, q));
+  const fwd = pv.lift > 0.01 ? pv.side > 0 : flex >= 0;
+  const rise = fwd === (flex >= 0) ? FLEX_RISE*Math.abs(flex) : 0;
   ctx.beginPath();
-  if (pv.lift < 0.01){
-    ctx.moveTo(...P(tail, 0)); ctx.lineTo(...P(tip - 0.24, 0)); ctx.quadraticCurveTo(...P(tip - 0.06, 0), ...P(tip, -0.1));
-  } else if (pv.side > 0){         // nose press: tail and boots up, the front bowed down onto the snow
-    ctx.moveTo(...T([tail, 0])); ctx.lineTo(...T([0, 0]));
-    ctx.quadraticCurveTo(...P(pv.x - 0.35, 0), ...P(pv.x, 0));
-    ctx.quadraticCurveTo(...P(tip - 0.04, 0), ...P(tip, -0.1));
-  } else {                         // tail press: tip and boots up, the back bowed down onto the snow
-    ctx.moveTo(...P(tail, 0)); ctx.quadraticCurveTo(...P(pv.x + 0.35, 0), ...T([0, 0]));
-    ctx.lineTo(...T([tip - 0.24, 0])); ctx.quadraticCurveTo(...T([tip - 0.06, 0]), ...T([tip, -0.1]));
+  if (fwd){
+    ctx.moveTo(...T([tail, -rise])); ctx.quadraticCurveTo(...T([tail*0.45, 0]), ...T([0, 0]));   // the light tail
+    if (pv.lift > 0.01){ ctx.quadraticCurveTo(...P(pv.x - 0.35, 0), ...P(pv.x, 0)); ctx.quadraticCurveTo(...P(tip - 0.04, 0), ...P(tip, -0.1)); }
+    else { ctx.lineTo(...P(tip - 0.24, 0)); ctx.quadraticCurveTo(...P(tip - 0.06, 0), ...P(tip, -0.1)); }
+  } else {
+    if (pv.lift > 0.01){ ctx.moveTo(...P(tail, 0)); ctx.quadraticCurveTo(...P(pv.x + 0.35, 0), ...T([0, 0])); }
+    else { ctx.moveTo(...P(tail, 0)); ctx.lineTo(...P(0, 0)); }
+    ctx.quadraticCurveTo(...T([tip*0.5, 0]), ...T([tip - 0.24, -rise]));                         // the light shovel
+    ctx.quadraticCurveTo(...T([tip - 0.06, -rise]), ...T([tip, -rise - 0.1]));
   }
   ctx.stroke();
 }
@@ -605,7 +617,7 @@ function drawSkier(){
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const pv = pressPivot(-0.85, 0.96);
   ctx.strokeStyle = s.pressLift > 0.3 ? C.butter : C.ink; ctx.lineWidth = Math.max(2.5, k*0.07);
-  skiPath(P, -0.85, 0.96, pv);
+  skiPath(P, -0.85, 0.96, pv, s.flex);
   tiltAbout(P, pv);
   // where centred is: straight up from the boots, square to the skis
   if (!falling){
@@ -651,7 +663,7 @@ function drawStance(){
   ctx.lineCap = 'round';
   const pv = pressPivot(-0.6, 0.78);
   ctx.strokeStyle = s.pressLift > 0.3 ? C.butter : C.ink; ctx.lineWidth = 2.5;
-  skiPath(P, -0.6, 0.78, pv);
+  skiPath(P, -0.6, 0.78, pv, s.flex);
   tiltAbout(P, pv);
   const band = 0.95*Math.sin(C1/DEG);
   ctx.strokeStyle = C.good; ctx.globalAlpha = .3; ctx.lineWidth = 7;
@@ -764,7 +776,7 @@ function showMenu(){
     <p class="src">Stay centred over your feet as the terrain changes.</p>
     <p>Drag the slider to move your hips forward or back over your skis. As the slope drops away over a crest, move forward with your skis. As it flattens or rises into a dip, let your feet come forward.</p>
     <p style="font-size:14px;color:var(--ink-soft)">The dashed line from the boots is centred; the dot is your centre of mass. The Stance panel shows the ankle, knee and hip doing the work. Fast over a crest you’ll fly, and in the air you can barely move: leave the snow on your tails and the tips rise, on your tips and they drop. Take off centred to land centred.</p>
-    <p style="font-size:14px;color:var(--ink-soft)">Past centred there’s a purple band. Hold steady in it and the skis flex: forward for a nose press, back for a tail press. Any further and you’re on your tips or in the back seat.</p>
+    <p style="font-size:14px;color:var(--ink-soft)">The skis flex as your weight moves along them. Far forward or back, just past where the red starts, there’s a purple band: hold steady in it and the far end lifts off the snow, a nose press forward or a tail press back. Beyond it you fall.</p>
     ${chipsHTML()}
     <div class="best">${bestText()}</div>
     <button class="btn" id="go">Start run</button>`;

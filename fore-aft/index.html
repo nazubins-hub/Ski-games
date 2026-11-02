@@ -137,6 +137,10 @@ const RECENTRE = 2.0;            // s: time constant of the body settling back o
 const G = 9.81, MU = 0.05, VIEW_W = 24, DX = 0.1;
 const DRAG = 0.012;              // air drag plus the speed a skier sheds by turning, which this side view doesn't show
 const MIN_AIR = 0.2;             // s: shorter than this the skis only skimmed the crest
+const HIPS_RATE = 150;           // deg/s: how fast the hips can move on the snow
+const AIR_HIPS = 6;              // deg/s: and in the air, with nothing to push against
+const SPIN = 1.5;                // deg/s of pitch in the air per degree off centre at takeoff
+const ABSORB = 0.3;              // share of a landing's path-to-slope mismatch the legs don't soak up
 const TRAILS = {
   // pitch: [distance (m), slope (deg), transition length (m)]; bumps: [start (m), width (m), height (m)], negative is a dip
   green:{name:'Green', len:480,
@@ -144,7 +148,7 @@ const TRAILS = {
     bumps:[[30,22,1.0],[70,22,1.1],[175,22,1.1],[215,22,1.1],[285,22,-1.0],[320,22,1.1],[395,22,1.1],[435,22,1.1]]},
   blue: {name:'Blue', len:540,
     pitch:[[0,11],[120,17,14],[205,9,16],[320,18,12],[420,11,16]],
-    bumps:[[35,22,1.6],[74,22,1.8],[150,22,1.8],[187,22,1.8],[245,22,-1.7],[282,22,1.8],[350,22,1.9],[387,22,1.8],[455,22,1.8],[492,22,1.9]]},
+    bumps:[[35,22,1.6],[74,22,1.8],[150,22,1.8],[190,12,.9],[245,22,-1.7],[282,22,1.8],[350,22,1.9],[392,12,1.0],[455,22,1.8],[492,22,1.9]]},
   black:{name:'Black', len:580,
     pitch:[[0,16],[90,23,10],[170,12,10],[280,24,9],[360,14,10],[470,20,9]],
     bumps:[[30,18,1.4],[62,18,1.6],[190,12,.55],[202,12,.55],[214,12,.55],[226,12,.55],[238,12,.55],[250,12,.55],
@@ -228,7 +232,8 @@ function newRun(){
   input.u = 0;
   const th0 = sample(TR.th, 0);
   s = { T, x:0, y:sample(TR.h, 0), v:T.name==='Green' ? 9 : T.name==='Blue' ? 12 : 15, skiAng:th0,
-        air:false, airStart:0, vx:0, vy:0, d:0, phi:0, zone:0, bal:100,
+        air:false, airStart:0, vx:0, vy:0, d:0, hips:0, phi:0, zone:0, bal:100,
+        spin:0, spinAcc:0, takeoffPhi:0, takeoffAng:0, takeoffs:0, cleanTakeoffs:0, takeoffSeen:true, fallTakeoff:false,
         tRun:0, tCentred:0, tBack:0, tFwd:0, airT:0, jumps:0, landT:-1, landPending:false, warned:{},
         trace:[], flash:null, fallT:0, fallDir:0, cause:'', fallBack:false, fallLanded:false, spray:[] };
   camY = 0.65*s.y + 0.35*sample(TR.h, 8);
@@ -281,6 +286,9 @@ function step(dt){
   if (!(dt > 0)) return;
   const T = s.T;
   if (input.keyDir) input.u = clamp(input.u + input.keyDir*(input.fast? 150:60)*dt, -U_MAX, U_MAX);
+  // the hips follow the slider; in the air, with nothing to push against, they barely can
+  const hr = (s.air ? AIR_HIPS : HIPS_RATE)*dt;
+  s.hips += clamp(input.u - s.hips, -hr, hr);
 
   if (!s.air){
     const th0 = sample(TR.th, s.x);
@@ -288,6 +296,9 @@ function step(dt){
     if (N < 0){
       // over a crest faster than gravity can bend the path: the skis leave the snow
       s.air = true; s.airStart = s.tRun; s.vx = s.v*Math.cos(th0); s.vy = -s.v*Math.sin(th0); s.skiAng = th0;
+      // weight on the tails as the skis leave the snow kicks the tips up, weight on the tips drops them,
+      // and nothing in the air stops the rotation: the takeoff decides the landing
+      s.takeoffPhi = s.phi; s.takeoffAng = th0; s.spin = clamp(SPIN*s.phi, -40, 40); s.spinAcc = 0; s.takeoffSeen = false;
     } else {
       s.v = clamp(s.v + (G*Math.sin(th0) - MU*N - DRAG*s.v*s.v)*dt, 2, 30);
       s.x += s.v*Math.cos(th0)*dt;
@@ -300,6 +311,15 @@ function step(dt){
   }
   if (s.air){
     s.vy -= G*dt; s.x += s.vx*dt; s.y += s.vy*dt; s.airT += dt;
+    // a centred skier keeps the skis travelling with the flight path; an off-centre takeoff adds a rotation on top
+    s.spinAcc += s.spin*dt;
+    s.skiAng = Math.atan2(-s.vy, s.vx) + s.spinAcc/DEG;
+    if (!s.takeoffSeen && s.tRun - s.airStart >= MIN_AIR){
+      s.takeoffSeen = true; s.takeoffs++;
+      const ta = Math.abs(s.takeoffPhi), tz = ta < C1 ? 0 : ta < C2 ? 1 : 2;
+      if (tz===0) s.cleanTakeoffs++;
+      s.flash = tz===0 ? {text:'Took off centred', t:1, c:C.good} : {text: s.takeoffPhi < 0 ? 'Took off back: tips rising' : 'Took off forward: tips dropping', t:1.4, c:C.zone[tz]};
+    }
     const hg = sample(TR.h, s.x);
     if (s.y <= hg){
       // landing: the skis snap to the slope in one go, which shoves the body just as a crest does
@@ -307,19 +327,25 @@ function step(dt){
       const impact = -(s.vx*Math.sin(thl) + s.vy*Math.cos(thl));
       s.v = clamp(s.vx*Math.cos(thl) - s.vy*Math.sin(thl), 2, 30);
       s.y = hg; s.air = false;
-      s.d += (1-FOLLOW)*(thl - s.skiAng)*DEG; s.skiAng = thl;
-      if (s.tRun - s.airStart >= MIN_AIR){ s.landT = s.tRun; s.jumps++; s.landPending = true; }
+      // after a real flight the legs soak up most of the gap between the flight path and the slope; they can't
+      // undo a rotation carried from the takeoff, because the whole body is turning with the skis. A skim barely
+      // left the snow, so the slope's change of pitch reaches the body in full, as it does on the snow
+      const flew = s.tRun - s.airStart >= MIN_AIR;
+      const gap = flew ? ABSORB*(thl - Math.atan2(-s.vy, s.vx)) : thl - s.takeoffAng;
+      s.d += (1-FOLLOW)*(gap*DEG - s.spinAcc); s.skiAng = thl;
+      if (flew){ s.landT = s.tRun; s.jumps++; s.landPending = true; }
       if (impact > 5) s.bal -= (impact - 5)*12;
       for (let i=0;i<14;i++) s.spray.push({x:s.x + (Math.random()-.5)*1.4, y:s.y, vx:s.v*Math.cos(thl)*.4 + (Math.random()-.5)*3, vy:1 + Math.random()*3, life:.7});
     }
   }
 
   s.d -= s.d/RECENTRE*dt;
-  s.phi = input.u - s.d;
+  s.phi = s.hips - s.d;
   const a = Math.abs(s.phi), zone = a < C1 ? 0 : a < C2 ? 1 : 2;
   s.zone = zone;
   if (s.landPending){
     s.landPending = false;
+    if (zone > 0) s.bal -= (a - C1)*2.5;   // landing on the tails or the tips is a jolt of its own
     s.flash = zone===0 ? {text:'Landed centred', t:1.2, c:C.good} : {text: s.phi < 0 ? 'Landed back' : 'Landed forward', t:1.2, c:C.zone[zone]};
   }
 
@@ -334,9 +360,12 @@ function step(dt){
   if (zone===0) s.tCentred += dt; else if (s.phi < 0) s.tBack += dt; else s.tFwd += dt;
 
   if (!s.air && (s.bal <= 0 || a > C3)){
-    s.fallBack = s.phi < 0; s.fallLanded = s.landT >= 0 && s.tRun - s.landT < 0.4;
-    s.cause = s.fallLanded ? (s.fallBack ? 'Landed in the back seat.' : 'Landed on your tips.')
-                           : (s.fallBack ? 'Back seat: the skis ran out from under you.' : 'Over the tips: the skis slowed and you didn’t.');
+    s.fallBack = s.phi < 0; s.fallLanded = s.landT >= 0 && s.tRun - s.landT < 0.8;   // a bad landing usually takes a moment to finish you
+    s.fallTakeoff = s.fallLanded && Math.abs(s.takeoffPhi) >= C1 && (s.takeoffPhi < 0) === s.fallBack;
+    s.cause = s.fallTakeoff ? (s.fallBack ? 'Took off with your weight back: the tips came up and you landed on your tails.'
+                                          : 'Took off with your weight forward: the tips dropped and you landed on them.')
+            : s.fallLanded ? (s.fallBack ? 'Landed in the back seat.' : 'Landed on your tips.')
+            : (s.fallBack ? 'Back seat: the skis ran out from under you.' : 'Over the tips: the skis slowed and you didn’t.');
     s.bal = 0; mode = 'fall'; s.fallT = 0; s.fallDir = s.fallBack ? -1 : 1;
     for (let i=0;i<22;i++) s.spray.push({x:s.x, y:s.y + .3, vx:s.v*.5 + (Math.random()-.5)*4, vy:Math.random()*4, life:1});
     return;
@@ -562,7 +591,7 @@ function showMenu(){
     <h1>Fore-aft</h1>
     <p class="src">Stay centred over your feet as the terrain changes.</p>
     <p>Drag the slider to move your hips forward or back over your skis. As the slope drops away over a crest, move forward with your skis. As it flattens or rises into a dip, let your feet come forward.</p>
-    <p style="font-size:14px;color:var(--ink-soft)">The dashed line from the boots is centred; the dot is your centre of mass. Fly off a crest and the landing will push you too, so get forward in the air.</p>
+    <p style="font-size:14px;color:var(--ink-soft)">The dashed line from the boots is centred; the dot is your centre of mass. Fast over a crest you’ll fly, and in the air you can barely move: leave the snow on your tails and the tips rise, on your tips and they drop. Take off centred to land centred.</p>
     ${chipsHTML()}
     <div class="best">${bestText()}</div>
     <button class="btn" id="go">Start run</button>`;
@@ -581,7 +610,7 @@ function results(title, lead){
     <div class="statsline">
       <div><b>${centred}%</b>centred</div>
       <div><b>${Math.round(Math.min(s.x, s.T.len)/s.T.len*100)}%</b>of the run</div>
-      <div><b>${s.airT.toFixed(1)} s</b>air</div>
+      <div><b>${s.takeoffs ? s.cleanTakeoffs+'/'+s.takeoffs : '–'}</b>takeoffs centred</div>
     </div>
     <div class="best">${rec ? 'New best on '+s.T.name : bestText()}</div>
     <button class="btn" id="again">Ski again</button>
@@ -590,9 +619,11 @@ function results(title, lead){
   overlay.hidden = false;
 }
 function showFall(){
-  const advice = s.fallLanded
-    ? (s.fallBack ? 'In the air your skis keep their angle; the landing tips them down. Get forward before you land.'
-                  : 'The landing was flatter than your skis. Let your feet come forward as you land.')
+  const advice = s.fallTakeoff
+    ? 'In the air there is nothing to push against, so you can’t fix it there. Be centred as the skis leave the snow.'
+    : s.fallLanded
+    ? (s.fallBack ? 'The landing was steeper than your skis. Take off centred, even a touch forward, so the tips drop with the slope.'
+                  : 'The landing was flatter than your skis. Take off centred, and let your feet come forward as you land.')
     : (s.fallBack ? 'As the slope drops away over a crest, move forward with your skis, starting before the tips drop.'
                   : 'As the slope flattens or rises into a dip, let your feet come forward so the tips don’t stop you.');
   results('Fell', `<p class="cause">${s.cause}</p><p>${advice}</p>`);
@@ -602,7 +633,9 @@ function showDone(){
   const lead = centred >= 0.75 ? 'Centred over your feet through the terrain.'
     : s.tBack > s.tFwd ? 'Mostly back. Move forward as the slope drops away, before the tips drop.'
     : 'Mostly forward. Let your feet come forward as the slope flattens into a dip.';
-  results('Run complete', `<p>${lead}</p>`);
+  const off = s.takeoffs - s.cleanTakeoffs;
+  const air = off ? ` ${off===1 ? 'One takeoff was' : off+' takeoffs were'} off centre, and the air carried it into the landing. Be centred as the skis leave the snow.` : '';
+  results('Run complete', `<p>${lead}${air}</p>`);
 }
 
 function pause(){

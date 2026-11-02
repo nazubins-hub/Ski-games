@@ -408,7 +408,7 @@ function step(dt){
                                           : 'Took off with your weight forward: the tips dropped and you landed on them.')
             : s.fallLanded ? (s.fallBack ? 'Landed in the back seat.' : 'Landed on your tips.')
             : (s.fallBack ? 'Back seat: the skis ran out from under you.' : 'Over the tips: the skis slowed and you didn’t.');
-    s.bal = 0; mode = 'fall'; s.fallT = 0; s.fallDir = s.fallBack ? -1 : 1;
+    s.bal = 0; mode = 'fall'; s.fallT = 0; s.fallDir = s.fallBack ? -1 : 1; s.press = 0;
     for (let i=0;i<22;i++) s.spray.push({x:s.x, y:s.y + .3, vx:s.v*.5 + (Math.random()-.5)*4, vy:Math.random()*4, life:1});
     return;
   }
@@ -435,6 +435,8 @@ function step(dt){
 
 function stepFall(dt){
   s.fallT += dt;
+  const relax = 1 - Math.exp(-dt/0.12);                    // down in the snow, the skis carry no load: they straighten
+  s.flex -= s.flex*relax; s.pressLift -= s.pressLift*relax;
   if (s.air){
     s.vy -= G*dt; s.x += s.vx*dt; s.y += s.vy*dt;
     const hg = sample(TR.h, s.x); if (s.y <= hg){ s.y = hg; s.air = false; s.v = Math.hypot(s.vx, s.vy)*.5; }
@@ -590,20 +592,27 @@ function tiltAbout(P, pv){ const [px, py] = P(pv.x, 0); ctx.translate(px, py); c
 const FLEX_RISE = 0.16;          // m the light end of the ski lifts at full flex, before the press tilts the skier
 // a ski with a turned-up tip. flex (-1..1) bends it with the weight: forward loads the shovel and the tail
 // lightens and curls up, back the reverse. In a press the boots come up too and the ski bows onto its contact point
+// Every section meets the next along the same direction, so the ski bends smoothly and never kinks
 function skiPath(P, tail, tip, pv, flex){
-  const T = q => P(...tilted(pv, q));
-  const fwd = pv.lift > 0.01 ? pv.side > 0 : flex >= 0;
+  const T = q => P(...tilted(pv, q)), pressed = pv.lift > 0.01;
+  const fwd = pressed ? pv.side > 0 : flex >= 0;
   const rise = fwd === (flex >= 0) ? FLEX_RISE*Math.abs(flex) : 0;
+  const boot = tilted(pv, [0, 0]), along = [Math.cos(pv.a), Math.sin(pv.a)];
+  const fromBoot = d => P(boot[0] + along[0]*d, boot[1] + along[1]*d);     // along the tilted ski, through the boot
   ctx.beginPath();
   if (fwd){
-    ctx.moveTo(...T([tail, -rise])); ctx.quadraticCurveTo(...T([tail*0.45, 0]), ...T([0, 0]));   // the light tail
-    if (pv.lift > 0.01){ ctx.quadraticCurveTo(...P(pv.x - 0.35, 0), ...P(pv.x, 0)); ctx.quadraticCurveTo(...P(tip - 0.04, 0), ...P(tip, -0.1)); }
-    else { ctx.lineTo(...P(tip - 0.24, 0)); ctx.quadraticCurveTo(...P(tip - 0.06, 0), ...P(tip, -0.1)); }
+    ctx.moveTo(...T([tail, -rise])); ctx.quadraticCurveTo(...T([tail*0.45, 0]), ...P(...boot));   // the light tail curls up
+    if (pressed){                    // nose press: bowed down onto the front of the ski
+      ctx.bezierCurveTo(...fromBoot(0.3), ...P(pv.x - 0.3, 0), ...P(pv.x, 0));
+      ctx.quadraticCurveTo(...P(tip - 0.04, 0), ...P(tip, -0.1));
+    } else { ctx.lineTo(...P(tip - 0.24, 0)); ctx.quadraticCurveTo(...P(tip - 0.06, 0), ...P(tip, -0.1)); }
   } else {
-    if (pv.lift > 0.01){ ctx.moveTo(...P(tail, 0)); ctx.quadraticCurveTo(...P(pv.x + 0.35, 0), ...T([0, 0])); }
-    else { ctx.moveTo(...P(tail, 0)); ctx.lineTo(...P(0, 0)); }
-    ctx.quadraticCurveTo(...T([tip*0.5, 0]), ...T([tip - 0.24, -rise]));                         // the light shovel
-    ctx.quadraticCurveTo(...T([tip - 0.06, -rise]), ...T([tip, -rise - 0.1]));
+    ctx.moveTo(...P(tail, 0));
+    if (pressed){                    // tail press: bowed down onto the back of the ski
+      ctx.lineTo(...P(pv.x, 0)); ctx.bezierCurveTo(...P(pv.x + 0.3, 0), ...fromBoot(-0.3), ...P(...boot));
+    } else ctx.lineTo(...P(0, 0));
+    // the light shovel lifts in one curve from the boot, turned-up tip and all
+    ctx.bezierCurveTo(...T([tip*0.55, 0]), ...T([tip - 0.08, -rise]), ...T([tip, -rise - 0.1]));
   }
   ctx.stroke();
 }
@@ -612,7 +621,10 @@ function skiPath(P, tail, tip, pv, flex){
 function drawSkier(){
   const [sx, sy] = toS(s.x, s.y), k = ppm*2.2;          // larger than life, so the joints read at a glance
   const falling = mode==='fall' || mode==='fallen';
-  const P = (x, y) => [x*k, y*k], q = pose(s.phi);
+  // falling, the stance collapses as the body rotates down, so it ends lying on the snow rather than in it
+  const fallMax = s.fallDir > 0 ? 1.15 : 1.35;              // rad the body rotates down: less forward, where the slope falls away
+  const fallen = falling ? clamp(s.fallT*2.2/fallMax, 0, 1) : 0;
+  const P = (x, y) => [x*k, y*k], q = pose(s.phi*(1 - fallen));
   ctx.save(); ctx.translate(sx, sy); ctx.rotate(s.skiAng);
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const pv = pressPivot(-0.85, 0.96);
@@ -625,7 +637,7 @@ function drawSkier(){
     ctx.beginPath(); ctx.moveTo(...P(0,-0.1)); ctx.lineTo(...P(0,-1.75)); ctx.stroke(); ctx.setLineDash([]);
   }
   // the body pivots about the boots when it falls
-  if (falling) ctx.rotate(s.fallDir*clamp(s.fallT*2.2, 0, 1.35));
+  if (falling) ctx.rotate(s.fallDir*fallMax*fallen);
   drawBody(q, P, k, !falling);
   if (!falling) massRing(P(...q.cm), Math.max(5, 0.1*k));
   ctx.restore();

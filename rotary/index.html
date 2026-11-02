@@ -74,7 +74,7 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
 .gauge i{position:absolute;top:-2px;bottom:-2px;width:4px;margin-left:-2px;background:var(--ink);border-radius:2px;left:0}
 #speedWord{font:700 18px "Barlow Condensed",sans-serif;text-align:right}
 #trace{display:block;width:100%;height:48px;margin:10px 0 6px}
-#wheel{display:block;width:100%;height:164px;touch-action:none;cursor:grab;outline:none;border-radius:12px}
+#wheel{display:block;width:100%;height:172px;touch-action:none;cursor:grab;outline:none;border-radius:12px}
 #wheel:focus-visible{box-shadow:0 0 0 3px var(--slow)}
 #wheel.active{cursor:grabbing}
 </style>
@@ -100,14 +100,14 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
       <span id="speedWord">–</span>
     </div>
     <canvas id="trace" aria-label="Speed over the last six seconds"></canvas>
-    <canvas id="wheel" tabindex="0" role="slider" aria-label="Ski direction wheel" aria-valuemin="-150" aria-valuemax="150" aria-valuenow="0" aria-valuetext="Fall line"></canvas>
+    <canvas id="wheel" tabindex="0" role="slider" aria-label="Ski direction wheel" aria-valuemin="-180" aria-valuemax="180" aria-valuenow="0" aria-valuetext="Fall line"></canvas>
   </section>
   <div class="overlay" id="overlay"><div class="card" id="card"></div></div>
 </main>
 
 <script>
 (function(){
-const H_MAX = 150, TRAIL_W = 30, VIEW_W = 34;   // past 90 deg the skis point back up the hill
+const TRAIL_W = 30, VIEW_W = 34;   // the skis turn freely: past 90 deg they point back up the hill, and on round
 const ROT_RATE = 150;            // deg/s: how fast the skis rotate toward where the wheel points
 const G = 9.81, MU = 0.05, DRAG = 0.006;
 const SKID = 2.5;                // m/s² of braking with the skis fully across the hill, scaled by sin²
@@ -151,7 +151,7 @@ function resize(){
   WW = wr.width; WH = wr.height;
   wc.width = Math.round(WW*DPR); wc.height = Math.round(WH*DPR);
 }
-const WCX = () => WW/2, WCY = () => WH - WR - 8;
+const WCX = () => WW/2, WCY = () => WH - WR - 14;
 window.addEventListener('resize', resize);
 
 const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
@@ -217,7 +217,7 @@ wc.addEventListener('pointermove', e => {
   const p = pointerAngle(e);
   if (p.d > 14 && drag.d > 14){          // too close to the hub, the angle is noise
     let da = p.a - drag.a; da -= 360*Math.round(da/360);
-    input.h = clamp(input.h + da, -H_MAX, H_MAX);
+    input.h += da;                        // no stop: the wheel turns as far round as the hand takes it
   }
   drag = { ...p, id:drag.id };
 });
@@ -248,7 +248,7 @@ window.addEventListener('keyup', e => {
 // ---------- simulation ----------
 function step(dt){
   const T = s.T;
-  if (input.keyDir) input.h = clamp(input.h + input.keyDir*(input.fast? 240:90)*dt, -H_MAX, H_MAX);
+  if (input.keyDir) input.h += input.keyDir*(input.fast? 240:90)*dt;
   const maxd = ROT_RATE*Math.PI/180*dt;
   s.h += clamp(input.h*Math.PI/180 - s.h, -maxd, maxd);
 
@@ -425,7 +425,7 @@ function drawFan(){
   const [sx,sy] = toS(s.x, s.y), R = 3.4*ppm, h0 = s.hold*Math.PI/180;
   ctx.save(); ctx.translate(sx,sy);
   const seg = (a,b,col) => { if (b <= a) return; ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,R,a-Math.PI/2,b-Math.PI/2); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); };
-  const up = H_MAX*Math.PI/180;
+  const up = Math.PI;
   ctx.globalAlpha = .16; seg(-Math.PI/2,-h0,C.slow); seg(-h0,h0,C.bad); seg(h0,Math.PI/2,C.slow);
   ctx.globalAlpha = .32; seg(-up,-Math.PI/2,C.slow); seg(Math.PI/2,up,C.slow);       // back up the hill: stops you
   ctx.globalAlpha = 1; ctx.strokeStyle = C.good; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
@@ -480,7 +480,9 @@ function drawTrace(){
   }
 }
 
-const headText = () => { const a = Math.round(Math.abs(input.h)); return a < 3 ? 'Fall line' : a+'° '+(input.h<0?'left':'right'); };
+// the wheel's angle as a direction from the fall line, -180 to 180: two turns right reads the same as none
+const headAngle = () => input.h - 360*Math.round(input.h/360);
+const headText = () => { const h = headAngle(), a = Math.round(Math.abs(h)); return a < 3 ? 'Fall line' : a > 177 ? 'Straight uphill' : a+'° '+(h<0?'left':'right'); };
 
 function drawWheel(){
   wctx.setTransform(DPR,0,0,DPR,0,0);
@@ -491,7 +493,7 @@ function drawWheel(){
 
   // fixed ring: inside the green marks the skis speed up, outside they slow down
   const ring = (a,b,col) => { if (b <= a) return; wctx.beginPath(); wctx.arc(cx,cy,R+9,a-Math.PI/2,b-Math.PI/2); wctx.strokeStyle = col; wctx.lineWidth = 8; wctx.lineCap = 'butt'; wctx.stroke(); };
-  const up = H_MAX*Math.PI/180;
+  const up = Math.PI;
   wctx.globalAlpha = .45; ring(-Math.PI/2,-h0,C.slow); ring(-h0,h0,C.bad); ring(h0,Math.PI/2,C.slow);
   wctx.globalAlpha = .8; ring(-up,-Math.PI/2,C.slow); ring(Math.PI/2,up,C.slow); wctx.globalAlpha = 1;   // uphill: stops you
   wctx.lineCap = 'round';
@@ -546,7 +548,7 @@ function updateUI(){
   $('needle').style.left = Math.min(100, kmh/(T.target*FALL_X)*100)+'%';
   const sw = $('speedWord');
   sw.textContent = s.stopped ? 'stopped' : WORDS[s.zone]; sw.style.color = C.zone[s.zone];
-  wc.setAttribute('aria-valuenow', Math.round(input.h));
+  wc.setAttribute('aria-valuenow', Math.round(headAngle()));
   wc.setAttribute('aria-valuetext', headText());
 }
 
@@ -585,7 +587,7 @@ function showMenu(){
     <a class="back" href="../">← All games</a>
     <h1>Rotary</h1>
     <p class="src">Turn shape controls speed.</p>
-    <p>Grab the wheel and turn it to turn your skis. Point them down the hill and you speed up. Turn them across the hill and you slow down. Keep turning, back up the hill, and you stop; point them down again to go.</p>
+    <p>Grab the wheel and turn it to turn your skis. Point them down the hill and you speed up. Turn them across the hill and you slow down. Keep turning and they point back up the hill: with enough speed you carry the turn right round, and without it you stop. Point them down again to go.</p>
     <p style="font-size:14px;color:var(--ink-soft)">The pitch changes as you go, so one turn shape won’t hold your speed. The green marks around the wheel show the ski direction that holds it right now: inside them you speed up, outside them you slow down.</p>
     ${chipsHTML()}
     <div class="best"><b class="target" style="color:var(--ink)">${targetText()}</b><br>${bestText()}</div>

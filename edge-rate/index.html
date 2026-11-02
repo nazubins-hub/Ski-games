@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Edge rate</title>
+<title>Edging</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
@@ -34,7 +34,7 @@
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
 *,*::before,*::after{box-sizing:inherit}
 html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);}
-body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Barlow,"Helvetica Neue",Arial,sans-serif;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Barlow,"Helvetica Neue",Arial,sans-serif;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
 .app{position:relative;height:100%;max-width:520px;margin:0 auto;display:flex;flex-direction:column}
 .hud{display:grid;grid-template-columns:auto auto auto 1fr auto;gap:16px;align-items:end;padding:10px 16px 8px}
 .pause{align-self:center;width:36px;height:36px;padding:0;display:grid;place-items:center;border-radius:8px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
@@ -519,7 +519,7 @@ function showMenu(){
   mode = 'menu'; newRun();
   card.innerHTML = `
     <a class="back" href="../">← All games</a>
-    <h1>Edge rate</h1>
+    <h1>Edging</h1>
     <p class="src">Rate is the speed at which movement occurs. <br>ATM, Chapter 6</p>
     <p>Drag the slider to tip your skis on edge and link turns through the gates. Increase and decrease edge angle progressively. Move it abruptly and you’ll fall.</p>
     <p style="font-size:14px;color:var(--ink-soft)">Your tracks and the trace show your rate: green is progressive, amber is quick, red is abrupt.</p>

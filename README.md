@@ -4,9 +4,9 @@ Small browser games and tools for teaching skiing, published with GitHub Pages.
 
 | Game | What it teaches |
 | --- | --- |
-| [Edge rate](edge-rate/) | Rate of edging: increase and decrease edge angle progressively, not abruptly (ATM, Chapter 6). |
+| [Edging](edge-rate/) | Rate of edging: increase and decrease edge angle progressively, not abruptly (ATM, Chapter 6). |
 | [Rotary](rotary/) | Turning the skis controls speed: toward the fall line speeds you up, across it slows you down. Hold a steady speed as the pitch changes. |
-| [Fore-aft](fore-aft/) | Fore-aft pressure control: move forward as the slope drops away over a crest, let the feet come forward into a dip, and get forward in the air. |
+| [Fore/Aft Pressure](fore-aft/) | Fore-aft pressure control: move forward as the slope drops away over a crest, let the feet come forward into a dip, and get forward in the air. |
 
 ## Layout
 

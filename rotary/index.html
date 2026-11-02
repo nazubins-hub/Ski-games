@@ -34,7 +34,7 @@
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
 *,*::before,*::after{box-sizing:inherit}
 html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);}
-body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Barlow,"Helvetica Neue",Arial,sans-serif;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Barlow,"Helvetica Neue",Arial,sans-serif;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
 .app{position:relative;height:100%;max-width:520px;margin:0 auto;display:flex;flex-direction:column}
 .hud{display:grid;grid-template-columns:auto auto auto 1fr auto;gap:16px;align-items:end;padding:10px 16px 8px}
 .pause{align-self:center;width:36px;height:36px;padding:0;display:grid;place-items:center;border-radius:8px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
@@ -100,14 +100,14 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
       <span id="speedWord">–</span>
     </div>
     <canvas id="trace" aria-label="Speed over the last six seconds"></canvas>
-    <canvas id="wheel" tabindex="0" role="slider" aria-label="Ski direction wheel" aria-valuemin="-90" aria-valuemax="90" aria-valuenow="0" aria-valuetext="Fall line"></canvas>
+    <canvas id="wheel" tabindex="0" role="slider" aria-label="Ski direction wheel" aria-valuemin="-150" aria-valuemax="150" aria-valuenow="0" aria-valuetext="Fall line"></canvas>
   </section>
   <div class="overlay" id="overlay"><div class="card" id="card"></div></div>
 </main>
 
 <script>
 (function(){
-const H_MAX = 90, TRAIL_W = 30, VIEW_W = 34;
+const H_MAX = 150, TRAIL_W = 30, VIEW_W = 34;   // past 90 deg the skis point back up the hill
 const ROT_RATE = 150;            // deg/s: how fast the skis rotate toward where the wheel points
 const G = 9.81, MU = 0.05, DRAG = 0.006;
 const SKID = 2.5;                // m/s² of braking with the skis fully across the hill, scaled by sin²
@@ -253,6 +253,7 @@ function step(dt){
   s.h += clamp(input.h*Math.PI/180 - s.h, -maxd, maxd);
 
   s.pitch = pitchAt(T, s.y);
+  // pointed back up the hill, gravity stops the skier; stopped there, the edges hold and they don't slide backwards
   s.v = Math.max(0, s.v + accel(s.v, s.h, s.pitch)*dt);
   s.hold = holdAngle(s.v, s.pitch);
   const kmh = s.v*3.6;
@@ -424,7 +425,9 @@ function drawFan(){
   const [sx,sy] = toS(s.x, s.y), R = 3.4*ppm, h0 = s.hold*Math.PI/180;
   ctx.save(); ctx.translate(sx,sy);
   const seg = (a,b,col) => { if (b <= a) return; ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,R,a-Math.PI/2,b-Math.PI/2); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); };
+  const up = H_MAX*Math.PI/180;
   ctx.globalAlpha = .16; seg(-Math.PI/2,-h0,C.slow); seg(-h0,h0,C.bad); seg(h0,Math.PI/2,C.slow);
+  ctx.globalAlpha = .32; seg(-up,-Math.PI/2,C.slow); seg(Math.PI/2,up,C.slow);       // back up the hill: stops you
   ctx.globalAlpha = 1; ctx.strokeStyle = C.good; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
   for (const a of [-h0,h0]){ ctx.beginPath(); ctx.moveTo(Math.sin(a)*R*.5, -Math.cos(a)*R*.5); ctx.lineTo(Math.sin(a)*R, -Math.cos(a)*R); ctx.stroke(); }
   ctx.strokeStyle = C['ink-soft']; ctx.lineWidth = 1.5; ctx.setLineDash([3,4]);
@@ -488,7 +491,9 @@ function drawWheel(){
 
   // fixed ring: inside the green marks the skis speed up, outside they slow down
   const ring = (a,b,col) => { if (b <= a) return; wctx.beginPath(); wctx.arc(cx,cy,R+9,a-Math.PI/2,b-Math.PI/2); wctx.strokeStyle = col; wctx.lineWidth = 8; wctx.lineCap = 'butt'; wctx.stroke(); };
-  wctx.globalAlpha = .45; ring(-Math.PI/2,-h0,C.slow); ring(-h0,h0,C.bad); ring(h0,Math.PI/2,C.slow); wctx.globalAlpha = 1;
+  const up = H_MAX*Math.PI/180;
+  wctx.globalAlpha = .45; ring(-Math.PI/2,-h0,C.slow); ring(-h0,h0,C.bad); ring(h0,Math.PI/2,C.slow);
+  wctx.globalAlpha = .8; ring(-up,-Math.PI/2,C.slow); ring(Math.PI/2,up,C.slow); wctx.globalAlpha = 1;   // uphill: stops you
   wctx.lineCap = 'round';
   wctx.strokeStyle = C['ink-soft']; wctx.lineWidth = 2;
   wctx.beginPath(); wctx.moveTo(...at(0, R+4)); wctx.lineTo(...at(0, R+15)); wctx.stroke();
@@ -496,8 +501,10 @@ function drawWheel(){
   for (const a of [-h0,h0]){ wctx.beginPath(); wctx.moveTo(...at(a, R+3)); wctx.lineTo(...at(a, R+16)); wctx.stroke(); }
   wctx.font = '500 11px Barlow, sans-serif'; wctx.fillStyle = C['ink-soft']; wctx.textAlign = 'center';
   wctx.fillText('fall line', cx, cy - R - 20);
-  wctx.textAlign = 'right'; wctx.fillText('across', cx - R - 4, cy + 18);
-  wctx.textAlign = 'left';  wctx.fillText('across', cx + R + 4, cy + 18);
+  wctx.strokeStyle = C['ink-soft']; wctx.lineWidth = 2;
+  for (const a of [-Math.PI/2, Math.PI/2]){ wctx.beginPath(); wctx.moveTo(...at(a, R+4)); wctx.lineTo(...at(a, R+15)); wctx.stroke(); }
+  wctx.textAlign = 'right'; wctx.fillText('across', cx - R - 17, cy + 4); wctx.fillText('uphill', ...at(-2.25, R+17));
+  wctx.textAlign = 'left';  wctx.fillText('across', cx + R + 17, cy + 4); wctx.fillText('uphill', ...at(2.25, R+17));
 
   // the wheel, turned to where the finger put it
   wctx.save(); wctx.translate(cx,cy); wctx.rotate(input.h*Math.PI/180);
@@ -578,7 +585,7 @@ function showMenu(){
     <a class="back" href="../">← All games</a>
     <h1>Rotary</h1>
     <p class="src">Turn shape controls speed.</p>
-    <p>Grab the wheel and turn it to turn your skis. Point them down the hill and you speed up. Turn them across the hill and you slow down, and eventually stop.</p>
+    <p>Grab the wheel and turn it to turn your skis. Point them down the hill and you speed up. Turn them across the hill and you slow down. Keep turning, back up the hill, and you stop; point them down again to go.</p>
     <p style="font-size:14px;color:var(--ink-soft)">The pitch changes as you go, so one turn shape won’t hold your speed. The green marks around the wheel show the ski direction that holds it right now: inside them you speed up, outside them you slow down.</p>
     ${chipsHTML()}
     <div class="best"><b class="target" style="color:var(--ink)">${targetText()}</b><br>${bestText()}</div>
@@ -615,7 +622,7 @@ function showDone(){
   const steady = s.tRun > 0 ? s.tIn/s.tRun : 0;
   let lead;
   if (steady >= 0.8) lead = 'Steady speed all the way down. Turn shape did the speed control.';
-  else if (s.stops) lead = `Stopped ${s.stops===1 ? 'once' : s.stops+' times'}. The skis stayed across the hill too long. Turn them back toward the fall line sooner.`;
+  else if (s.stops) lead = `Stopped ${s.stops===1 ? 'once' : s.stops+' times'}. Turning back up the hill always stops you; to hold the band, turn back toward the fall line before you slow too much.`;
   else if (s.tFast > s.tSlow) lead = 'Mostly too fast. Finish each turn further across the hill, especially where it steepens.';
   else lead = 'Mostly too slow. Let the skis point further down the hill before turning them across.';
   results('Run complete', `<p>${lead}</p>`);

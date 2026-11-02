@@ -394,7 +394,6 @@ function drawObjects(pt){
 // x to the skier's right, y up, metres. Both skis on the snow; the body inclines into the turn, so the
 // inside hip drops toward the inside foot (a short, flexed inside leg) and the outside leg reaches long.
 // The pressure split moves the hips along the pelvis line, over whichever ski carries the weight
-const THIGH = 0.47, SHIN = 0.47;
 function rearPose(lean, p){
   const lam = -clamp(lean, -0.85, 0.85);                     // + leans to the skier's right
   const ax = [Math.sin(lam), Math.cos(lam)], perp = [Math.cos(lam), -Math.sin(lam)];
@@ -406,19 +405,19 @@ function rearPose(lean, p){
     const longest = Math.max(Math.hypot(hipL[0]-ankL[0], hipL[1]-ankL[1]), Math.hypot(hipR[0]-ankR[0], hipR[1]-ankR[1]));
     if (longest <= 0.92) break; hgt -= longest - 0.92;
   }
-  // knees bend out of the line from ankle to hip: toward the inside of the turn, which is what tips the skis
-  // on edge. Running straight, the bend is mostly forward, out of sight, so only a little shows, knees in
-  const inward = Math.abs(lam) > 0.04 ? Math.sign(lam) : 0;
+  // Seen from behind, a knee flexes mostly forward, along the line of sight, so a flexed leg looks SHORTER
+  // rather than kinked: the knee sits on the line from ankle to hip, and the leg is drawn at its projected length.
+  // Only knee angulation shows sideways: both knees tip into the turn, the folded inside knee furthest
+  const into = Math.abs(lam) > 0.04 ? Math.sign(lam) : 0, turn = clamp(Math.abs(lam)/0.6, 0, 1);
   const knee = (ank, hip, own) => {
-    const L = Math.hypot(hip[0]-ank[0], hip[1]-ank[1]), off = Math.sqrt(Math.max(0, SHIN*SHIN - L*L/4));
-    let nx = -(hip[1]-ank[1])/L, ny = (hip[0]-ank[0])/L;
-    const dir = inward || own, f = inward ? 0.85 : 0.25;
-    if (Math.sign(nx) !== dir){ nx = -nx; ny = -ny; }
-    return [(ank[0]+hip[0])/2 + nx*off*f, (ank[1]+hip[1])/2 + ny*off*f];
+    const L = Math.hypot(hip[0]-ank[0], hip[1]-ank[1]), fold = clamp((0.85 - L)/0.18, 0, 1);
+    const off = into ? into*(0.02 + 0.05*fold)*turn : own*0.012;             // running straight: knees slightly in
+    return [(ank[0]+hip[0])/2 + off, (ank[1]+hip[1])/2];
   };
-  const lt = lam*0.55, tdir = [Math.sin(lt), Math.cos(lt)], tperp = [Math.cos(lt), -Math.sin(lt)];   // angulation keeps the shoulders level-ish
+  // angulation: the legs and hips tip into the turn, the spine a third as far, the shoulders near level, head upright
+  const sp = lam/3, tdir = [Math.sin(sp), Math.cos(sp)], tperp = [Math.cos(lam/10), -Math.sin(lam/10)];
   const sh = [pel[0] + tdir[0]*0.55, pel[1] + tdir[1]*0.55];
-  const head = [sh[0] + Math.sin(lt*0.6)*0.24, sh[1] + Math.cos(lt*0.6)*0.24];
+  const head = [sh[0] + Math.sin(lam/20)*0.24, sh[1] + Math.cos(lam/20)*0.24];
   return { lam, ankL, ankR, pel, hipL, hipR, kneeL: knee(ankL, hipL, 1), kneeR: knee(ankR, hipR, -1), sh, tperp, head,
            legL: Math.hypot(hipL[0]-ankL[0], hipL[1]-ankL[1]), legR: Math.hypot(hipR[0]-ankR[0], hipR[1]-ankR[1]) };
 }

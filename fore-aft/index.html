@@ -318,7 +318,7 @@ function step(dt){
       s.takeoffSeen = true; s.takeoffs++;
       const ta = Math.abs(s.takeoffPhi), tz = ta < C1 ? 0 : ta < C2 ? 1 : 2;
       if (tz===0) s.cleanTakeoffs++;
-      s.flash = tz===0 ? {text:'Took off centred', t:1, c:C.good} : {text: s.takeoffPhi < 0 ? 'Took off back: tips rising' : 'Took off forward: tips dropping', t:1.4, c:C.zone[tz]};
+      s.flash = tz===0 ? {text:'Took off centred', t:1, c:C.good} : {text: s.takeoffPhi < 0 ? 'Took off back' : 'Took off forward', t:1.4, c:C.zone[tz]};
     }
     const hg = sample(TR.h, s.x);
     if (s.y <= hg){
@@ -456,24 +456,89 @@ function draw(){
   ctx.globalAlpha = 1;
 
   drawSkier();
+  drawStance();
 
   if (s.flash){
+    // centred in the space left of the stance panel
     ctx.globalAlpha = Math.min(1, s.flash.t*2);
     ctx.font = '700 22px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center';
-    ctx.fillStyle = s.flash.c; ctx.fillText(s.flash.text, W/2, 34);
+    ctx.fillStyle = s.flash.c; ctx.fillText(s.flash.text, (W - stanceBox().w - 16)/2, 34);
     ctx.globalAlpha = 1;
   }
 }
 
-// side view, facing right. Drawn in the skis' frame: x along the skis, y down the screen
+// ---------- the skier ----------
+// segment lengths (m). The boot holds the foot rigid, so moving fore-aft is the ankle, knee and hip
+const SHIN = 0.45, THIGH = 0.46, TRUNK = 0.55;
+// joints for a fore-aft position phi (deg), in the skis' frame: x forward along the skis, y down the screen
+function pose(phi){
+  const p = clamp(phi, -35, 35);
+  const ankle = clamp(22 + 0.8*p, 2, 42);           // ankle flex: closing the shin on the boot tongue moves you forward
+  const trunk = clamp(ankle + 0.35*p, -5, 55);      // trunk lean: parallel to the shin when centred
+  const a = ankle/DEG, b = trunk/DEG;
+  const ank = [0, -0.12], knee = [Math.sin(a)*SHIN, ank[1] - Math.cos(a)*SHIN];
+  const target = Math.sin(p/DEG)*0.95;              // where the centre of mass sits: ahead of the boots (+) or behind (-)
+  let hx = target - 0.1, hip, sh, cm;
+  for (let i=0;i<5;i++){                             // the knee and hip place the hips so the mass lands on target
+    const dx = clamp(hx - knee[0], -THIGH*0.97, THIGH*0.97);
+    hip = [knee[0] + dx, knee[1] - Math.sqrt(THIGH*THIGH - dx*dx)];
+    sh = [hip[0] + Math.sin(b)*TRUNK, hip[1] - Math.cos(b)*TRUNK];
+    cm = massCentre(ank, knee, hip, sh);
+    hx += (target - cm[0])/0.75;
+  }
+  const elbow = [sh[0] + Math.sin(0.45)*0.28, sh[1] + Math.cos(0.45)*0.28];
+  const hand = [elbow[0] + Math.cos(0.3)*0.27, elbow[1] + Math.sin(0.3)*0.27];
+  const head = [sh[0] + Math.sin(b*0.4)*0.22, sh[1] - Math.cos(b*0.4)*0.22];
+  return { ank, knee, hip, sh, elbow, hand, head, cm, a, ankle, trunk,
+           kneeFlex: angleBetween(ank, knee, knee, hip), hipFlex: angleBetween(knee, hip, hip, sh) };
+}
+// mass shares, roughly: boots 3%, shins 10%, thighs 20%, trunk with head and arms 67%
+function massCentre(ank, knee, hip, sh){
+  const at = (u, v, f) => [u[0] + (v[0]-u[0])*f, u[1] + (v[1]-u[1])*f];
+  const parts = [[ank,.03], [at(ank,knee,.5),.10], [at(knee,hip,.5),.20], [at(hip,sh,.45),.67]];
+  return [parts.reduce((t,[q,w]) => t + q[0]*w, 0), parts.reduce((t,[q,w]) => t + q[1]*w, 0)];
+}
+// how far the second segment turns from the first (deg): 0 is straight
+function angleBetween(u0, u1, v0, v1){
+  const ux = u1[0]-u0[0], uy = u1[1]-u0[1], vx = v1[0]-v0[0], vy = v1[1]-v0[1];
+  return Math.acos(clamp((ux*vx + uy*vy)/(Math.hypot(ux,uy)*Math.hypot(vx,vy)), -1, 1))*DEG;
+}
+function rr(x, y, w, h, r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+// the body of pose q; P maps metres in the skis' frame to the canvas, k is pixels per metre
+function drawBody(q, P, k, joints){
+  const lw = Math.max(2.5, k*0.1);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(1, k*0.022);
+  ctx.beginPath(); ctx.moveTo(...P(...q.hand)); ctx.lineTo(...P(q.hand[0] - 0.5, 0)); ctx.stroke();       // pole
+  // boot: its cuff tilts with the shin, which is the ankle flexing inside it
+  const cuff = (f, n) => [q.ank[0] + Math.sin(q.a)*f + Math.cos(q.a)*n, q.ank[1] - Math.cos(q.a)*f + Math.sin(q.a)*n];
+  ctx.fillStyle = C.ink; ctx.beginPath();
+  [[-0.14,0],[0.17,0],[0.16,-0.07],[0.05,-0.1], cuff(0.2,0.06), cuff(0.2,-0.07), [-0.13,-0.13]]
+    .forEach((pt, i) => i ? ctx.lineTo(...P(...pt)) : ctx.moveTo(...P(...pt)));
+  ctx.closePath(); ctx.fill();
+  ctx.lineWidth = lw;
+  ctx.beginPath(); ctx.moveTo(...P(...q.ank)); ctx.lineTo(...P(...q.knee)); ctx.stroke();                 // shin
+  ctx.lineWidth = lw*1.15;
+  ctx.beginPath(); ctx.moveTo(...P(...q.knee)); ctx.lineTo(...P(...q.hip)); ctx.stroke();                 // thigh
+  ctx.strokeStyle = C.jacket; ctx.lineWidth = lw*1.5;
+  ctx.beginPath(); ctx.moveTo(...P(...q.hip)); ctx.lineTo(...P(...q.sh)); ctx.stroke();                   // trunk
+  ctx.lineWidth = lw*0.75;
+  ctx.beginPath(); ctx.moveTo(...P(...q.sh)); ctx.lineTo(...P(...q.elbow)); ctx.lineTo(...P(...q.hand)); ctx.stroke();  // arm
+  ctx.fillStyle = C.ink; ctx.beginPath(); ctx.arc(...P(...q.head), 0.12*k, 0, Math.PI*2); ctx.fill();    // head
+  if (joints){
+    ctx.fillStyle = C.panel; ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(1.2, k*0.02);
+    for (const j of [q.ank, q.knee, q.hip]){ ctx.beginPath(); ctx.arc(...P(...j), Math.max(2.2, k*0.035), 0, Math.PI*2); ctx.fill(); ctx.stroke(); }
+  }
+}
+
+// side view, facing right, drawn in the skis' frame
 function drawSkier(){
-  const [sx, sy] = toS(s.x, s.y), k = ppm*2.2;          // larger than life, so the lean reads at a glance
+  const [sx, sy] = toS(s.x, s.y), k = ppm*2.2;          // larger than life, so the joints read at a glance
   const falling = mode==='fall' || mode==='fallen';
-  const p = clamp(s.phi, -40, 40)/DEG;
-  const P = (x, y) => [x*k, y*k];
+  const P = (x, y) => [x*k, y*k], q = pose(s.phi);
   ctx.save(); ctx.translate(sx, sy); ctx.rotate(s.skiAng);
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-
   // where centred is: straight up from the boots, square to the skis
   if (!falling){
     ctx.strokeStyle = C['ink-soft']; ctx.lineWidth = 1.5; ctx.setLineDash([3,4]);
@@ -482,35 +547,70 @@ function drawSkier(){
   // skis, with a turned-up tip
   ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(2.5, k*0.07);
   ctx.beginPath(); ctx.moveTo(...P(-0.85,0)); ctx.lineTo(...P(0.72,0)); ctx.quadraticCurveTo(...P(0.9,0), ...P(0.96,-0.1)); ctx.stroke();
-
   // the body pivots about the boots when it falls
   if (falling) ctx.rotate(s.fallDir*clamp(s.fallT*2.2, 0, 1.35));
-  // proportions of a flexed stance: legs longer than the torso. Moving fore-aft is mostly the hips
-  // travelling over the feet, with the shins flexing; the torso tips only a little further
-  const ank = [0, -0.12];
-  const cm = [Math.sin(p)*0.95, -0.12 - Math.cos(p)*0.85];   // centre of mass ahead of (+) or behind (-) the boots
-  const hip = [cm[0] - 0.08, cm[1] + 0.06];
-  const legLen = Math.hypot(hip[0]-ank[0], hip[1]-ank[1]), bend = Math.sqrt(Math.max(0, 0.47*0.47 - legLen*legLen/4));
-  const ux = (hip[0]-ank[0])/legLen, uy = (hip[1]-ank[1])/legLen;
-  const knee = [(ank[0]+hip[0])/2 - uy*bend, (ank[1]+hip[1])/2 + ux*bend];   // two 0.47 m segments, knee bent forward
-  const tl = 0.32 + 0.45*p, sh = [hip[0] + Math.sin(tl)*0.55, hip[1] - Math.cos(tl)*0.55];
-  const head = [sh[0] + Math.sin(tl-0.1)*0.2, sh[1] - Math.cos(tl-0.1)*0.2];
-  const hand = [sh[0] + 0.3, sh[1] + 0.26];
-  const lw = Math.max(3, k*0.1);
-  ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(1, k*0.025);
-  ctx.beginPath(); ctx.moveTo(...P(...hand)); ctx.lineTo(...P(hand[0]-0.45, 0)); ctx.stroke();            // pole
-  ctx.lineWidth = lw;
-  ctx.beginPath(); ctx.moveTo(...P(...ank)); ctx.lineTo(...P(...knee)); ctx.lineTo(...P(...hip)); ctx.stroke();  // leg
-  ctx.fillStyle = C.ink; ctx.fillRect(...P(-0.13,-0.22), 0.3*k, 0.2*k);                                       // boot
-  ctx.strokeStyle = C.jacket; ctx.lineWidth = lw*1.5;
-  ctx.beginPath(); ctx.moveTo(...P(...hip)); ctx.lineTo(...P(...sh)); ctx.stroke();                          // torso
-  ctx.lineWidth = lw*0.8;
-  ctx.beginPath(); ctx.moveTo(...P(...sh)); ctx.lineTo(...P(...hand)); ctx.stroke();                         // arm
-  ctx.fillStyle = C.ink; ctx.beginPath(); ctx.arc(...P(...head), 0.12*k, 0, Math.PI*2); ctx.fill();          // head
-  if (!falling){
-    ctx.fillStyle = s.air ? C['ink-soft'] : C.zone[s.zone]; ctx.strokeStyle = C.panel; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(...P(...cm), Math.max(4, 0.08*k), 0, Math.PI*2); ctx.fill(); ctx.stroke();
-  }
+  drawBody(q, P, k, !falling);
+  if (!falling) massRing(P(...q.cm), Math.max(5, 0.1*k));
+  ctx.restore();
+}
+// the centre of mass, as a ring: it sits near the pelvis, and a solid dot would hide the hip joint
+function massRing([x, y], r){
+  ctx.strokeStyle = C.panel; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.stroke();
+  ctx.strokeStyle = s.air ? C['ink-soft'] : C.zone[s.zone]; ctx.lineWidth = 2.5; ctx.stroke();
+}
+
+// a close-up square to the skis, so the joint angles read the same on any slope
+const stanceBox = () => { const w = Math.round(clamp(Math.min(W, H*1.05)*0.32, 92, 140)); return { x: W - w - 8, y: 8, w, h: Math.round(w*1.28) }; };
+const JOINT_COLS = () => [C.cool, C.ink, C.jacket];
+function drawStance(){
+  const B = stanceBox(), q = pose(s.phi), cols = JOINT_COLS();
+  ctx.save();
+  ctx.globalAlpha = .93; ctx.fillStyle = C.panel; rr(B.x, B.y, B.w, B.h, 8); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = C.line; ctx.lineWidth = 1; rr(B.x+.5, B.y+.5, B.w-1, B.h-1, 8); ctx.stroke();
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = '600 11px Barlow, sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = C['ink-soft'];
+  if (B.w >= 118) ctx.fillText(s.air ? 'Stance · air' : 'Stance', B.x+8, B.y+15);
+  // the classic cue: in a balanced stance the shin and the trunk run parallel
+  const parallel = Math.abs(q.ankle - q.trunk) < 2;      // within the centred band, and only there
+  ctx.textAlign = 'right'; ctx.fillStyle = parallel ? C.good : C['ink-soft']; ctx.globalAlpha = parallel ? 1 : .5;
+  ctx.fillText('shin ∥ trunk', B.x+B.w-8, B.y+15); ctx.globalAlpha = 1;
+  [['ankle', q.ankle], ['knee', q.kneeFlex], ['hip', q.hipFlex]].forEach(([n, v], i) => {
+    const cx = B.x + 8 + (i + .5)*(B.w - 16)/3;
+    ctx.textAlign = 'center'; ctx.fillStyle = C['ink-soft']; ctx.font = '500 10px Barlow, sans-serif'; ctx.fillText(n, cx, B.y+30);
+    ctx.fillStyle = cols[i]; ctx.font = '700 15px "Barlow Condensed", sans-serif'; ctx.fillText(Math.round(v)+'°', cx, B.y+45);
+  });
+  const k = (B.h - 70)/1.72, ox = B.x + B.w*0.46, oy = B.y + B.h - 12, P = (x, y) => [ox + x*k, oy + y*k];
+  // the ski, with the stretch under the foot where the centre of mass belongs
+  ctx.lineCap = 'round';
+  const band = 0.95*Math.sin(C1/DEG);
+  ctx.strokeStyle = C.good; ctx.globalAlpha = .3; ctx.lineWidth = 7;
+  ctx.beginPath(); ctx.moveTo(...P(-band,0)); ctx.lineTo(...P(band,0)); ctx.stroke(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(...P(-0.6,0)); ctx.lineTo(...P(0.62,0)); ctx.quadraticCurveTo(...P(0.74,0), ...P(0.78,-0.07)); ctx.stroke();
+  ctx.strokeStyle = C['ink-soft']; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(...P(0,-0.1)); ctx.lineTo(...P(0,-1.62)); ctx.stroke(); ctx.setLineDash([]);
+  drawBody(q, P, k, true);
+  // each joint's bend, as an arc in its readout's colour: from where the segment below would carry on
+  // if the joint were straight (dashed) round to the segment above, so the arc sits in open space
+  const dir = (u, v) => { const l = Math.hypot(v[0]-u[0], v[1]-u[1]); return [(v[0]-u[0])/l, (v[1]-u[1])/l]; };
+  const bend = (c, from, to, r, col, ref) => {
+    const [cx, cy] = P(...c), a1 = Math.atan2(from[1], from[0]), a2 = Math.atan2(to[1], to[0]);
+    let d = a2 - a1; d -= 2*Math.PI*Math.round(d/(2*Math.PI));
+    ctx.strokeStyle = col;
+    if (ref){ ctx.globalAlpha = .55; ctx.lineWidth = 1.2; ctx.setLineDash([2,2]);
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + from[0]*r*1.5, cy + from[1]*r*1.5); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1; }
+    ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(cx, cy, r, a1, a1 + d, d < 0); ctx.stroke();
+  };
+  const shinDir = dir(q.ank, q.knee), thighDir = dir(q.knee, q.hip);
+  bend(q.ank, [0,-1], shinDir, 0.34*k, cols[0], false);       // from square to the skis: the dashed centre line
+  bend(q.knee, shinDir, thighDir, 0.17*k, cols[1], true);
+  bend(q.hip, thighDir, dir(q.hip, q.sh), 0.2*k, cols[2], true);
+  // plumb line from the centre of mass to the ski: over the foot is centred
+  const zc = s.air ? C['ink-soft'] : C.zone[s.zone];
+  ctx.strokeStyle = zc; ctx.lineWidth = 1.5; ctx.setLineDash([2,3]);
+  ctx.beginPath(); ctx.moveTo(...P(...q.cm)); ctx.lineTo(...P(q.cm[0], 0)); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = zc; ctx.beginPath(); ctx.arc(...P(q.cm[0], 0), 3, 0, Math.PI*2); ctx.fill();
+  massRing(P(...q.cm), 6);
   ctx.restore();
 }
 
@@ -591,7 +691,7 @@ function showMenu(){
     <h1>Fore-aft</h1>
     <p class="src">Stay centred over your feet as the terrain changes.</p>
     <p>Drag the slider to move your hips forward or back over your skis. As the slope drops away over a crest, move forward with your skis. As it flattens or rises into a dip, let your feet come forward.</p>
-    <p style="font-size:14px;color:var(--ink-soft)">The dashed line from the boots is centred; the dot is your centre of mass. Fast over a crest you’ll fly, and in the air you can barely move: leave the snow on your tails and the tips rise, on your tips and they drop. Take off centred to land centred.</p>
+    <p style="font-size:14px;color:var(--ink-soft)">The dashed line from the boots is centred; the dot is your centre of mass. The Stance panel shows the ankle, knee and hip doing the work. Fast over a crest you’ll fly, and in the air you can barely move: leave the snow on your tails and the tips rise, on your tips and they drop. Take off centred to land centred.</p>
     ${chipsHTML()}
     <div class="best">${bestText()}</div>
     <button class="btn" id="go">Start run</button>`;

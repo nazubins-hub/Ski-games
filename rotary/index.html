@@ -68,13 +68,13 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
 .statsline div{font-size:12px;color:var(--ink-soft)}
 .statsline b{display:block;font:700 26px "Barlow Condensed",sans-serif;color:var(--ink)}
 .controls{padding:8px 16px 14px;border-top:1px solid var(--line);background:var(--panel)}
-.speed-row{display:grid;grid-template-columns:auto 1fr 96px;gap:10px;align-items:center}
-.gauge{position:relative;height:12px;border-radius:6px;overflow:hidden;
+.speed-row{display:grid;grid-template-columns:auto 1fr 112px;gap:10px;align-items:center}
+.gauge{position:relative;height:16px;border-radius:8px;overflow:hidden;
   background:linear-gradient(to right,var(--slow) 0 var(--lo),var(--good) var(--lo) var(--hi),var(--bad) var(--hi) 100%);opacity:.9}
 .gauge i{position:absolute;top:-2px;bottom:-2px;width:4px;margin-left:-2px;background:var(--ink);border-radius:2px;left:0}
-#speedWord{font:700 18px "Barlow Condensed",sans-serif;text-align:right}
-#trace{display:block;width:100%;height:48px;margin:10px 0 6px}
-#wheel{display:block;width:100%;height:172px;touch-action:none;cursor:grab;outline:none;border-radius:12px}
+#speedWord{font:700 20px "Barlow Condensed",sans-serif;text-align:right}
+#wheel{display:block;width:100%;height:228px;touch-action:none;cursor:grab;outline:none;border-radius:12px}
+@media (max-height:640px){ #wheel{height:196px} }
 #wheel:focus-visible{box-shadow:0 0 0 3px var(--slow)}
 #wheel.active{cursor:grabbing}
 </style>
@@ -99,7 +99,6 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
       <div class="gauge" id="gauge"><i id="needle"></i></div>
       <span id="speedWord">–</span>
     </div>
-    <canvas id="trace" aria-label="Speed over the last six seconds"></canvas>
     <canvas id="wheel" tabindex="0" role="slider" aria-label="Ski direction wheel" aria-valuemin="-180" aria-valuemax="180" aria-valuenow="0" aria-valuetext="Fall line"></canvas>
   </section>
   <div class="overlay" id="overlay"><div class="card" id="card"></div></div>
@@ -124,10 +123,9 @@ const WORDS = ['slow','steady','fast'];
 
 const $ = id => document.getElementById(id);
 const cv = $('slope'), ctx = cv.getContext('2d');
-const tc = $('trace'), tctx = tc.getContext('2d');
 const overlay = $('overlay'), card = $('card');
 const wc = $('wheel'), wctx = wc.getContext('2d'), gauge = $('gauge');
-const WR = 60;                   // wheel radius (px); the ring of speed zones sits just outside it
+let WR = 82;                     // wheel radius (px), sized to its canvas; the ring of speed zones sits just outside it
 
 let C = {};
 function readColors(){
@@ -139,21 +137,19 @@ function readColors(){
 readColors();
 try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); }catch(e){}
 
-let W=0,H=0,DPR=1,ppm=10,TW=0,TH=0,WW=0,WH=0;
+let W=0,H=0,DPR=1,ppm=10,WW=0,WH=0;
 function resize(){
   DPR = Math.min(window.devicePixelRatio||1, 2);
   const r = cv.getBoundingClientRect();
   W = r.width; H = r.height;
   cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
   ppm = W / VIEW_W;
-  const tr = tc.getBoundingClientRect();
-  TW = tr.width; TH = tr.height;
-  tc.width = Math.round(TW*DPR); tc.height = Math.round(TH*DPR);
   const wr = wc.getBoundingClientRect();
   WW = wr.width; WH = wr.height;
   wc.width = Math.round(WW*DPR); wc.height = Math.round(WH*DPR);
+  WR = Math.min(82, (WH - 34)/2.34);          // room for the ring and the 'fall line' label above it
 }
-const WCX = () => WW/2, WCY = () => WH - WR - 14;
+const WCX = () => WW/2, WCY = () => WH - WR*1.27;   // the ring's outer edge clears the bottom
 window.addEventListener('resize', resize);
 
 const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
@@ -193,7 +189,7 @@ function newRun(){
   input.h = 0;
   s = { T, x:0, y:0, v:T.target/3.6, h:0, pitch:T.pitch[0][1], zone:1, hold:0,
         tRun:0, tIn:0, tSlow:0, tFast:0, sumV:0, sumV2:0, stops:0, stopped:false, warned:{},
-        tracks:[], trace:[], flash:null, offCool:0, fallT:0, spin:0, cause:'', spray:[] };
+        tracks:[], flash:null, offCool:0, fallT:0, spin:0, cause:'', spray:[] };
   s.hold = holdAngle(s.v, s.pitch);
   const vMax = T.target*FALL_X;
   gauge.style.setProperty('--lo', (T.target-T.band)/vMax*100+'%');
@@ -315,8 +311,6 @@ function step(dt){
   const last = s.tracks[s.tracks.length-1];
   if (!last || Math.hypot(s.x-last.x, s.y-last.y) > 0.25) s.tracks.push({x:s.x, y:s.y, h:s.h, z:zone});
   while (s.tracks.length && s.y - s.tracks[0].y > 70) s.tracks.shift();
-  s.trace.push({t:s.tRun, v:kmh, z:zone});
-  while (s.trace.length && s.tRun - s.trace[0].t > 6) s.trace.shift();
   if (s.flash){ s.flash.t -= dt; if (s.flash.t<=0) s.flash = null; }
 }
 
@@ -460,30 +454,6 @@ function drawSkier(){
 }
 function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 
-function drawTrace(){
-  tctx.setTransform(DPR,0,0,DPR,0,0);
-  tctx.clearRect(0,0,TW,TH);
-  if (!s) return;
-  const T = s.T, pad = 4, vMax = T.target*FALL_X, x0 = 34;
-  const yOf = v => TH - pad - clamp(v/vMax, 0, 1)*(TH - 2*pad);
-  tctx.fillStyle = C.good; tctx.globalAlpha = .14;
-  tctx.fillRect(x0, yOf(T.target+T.band), TW-x0, yOf(T.target-T.band) - yOf(T.target+T.band));
-  tctx.globalAlpha = 1;
-  tctx.strokeStyle = C.line; tctx.lineWidth = 1; tctx.setLineDash([3,4]);
-  tctx.beginPath(); tctx.moveTo(x0, yOf(T.target)+.5); tctx.lineTo(TW, yOf(T.target)+.5); tctx.stroke(); tctx.setLineDash([]);
-  tctx.font = '500 11px Barlow, sans-serif'; tctx.fillStyle = C['ink-soft']; tctx.textAlign = 'left';
-  tctx.fillText('fast', 2, 11); tctx.fillText(T.target+'', 2, yOf(T.target)+4); tctx.fillText('slow', 2, TH-3);
-  if (s.trace.length < 2) return;
-  const tEnd = s.tRun;
-  tctx.lineWidth = 2.5; tctx.lineCap = 'round';
-  for (let i=1;i<s.trace.length;i++){
-    const a = s.trace[i-1], b = s.trace[i];
-    const xa = x0 + (1 - (tEnd-a.t)/6)*(TW-x0), xb = x0 + (1 - (tEnd-b.t)/6)*(TW-x0);
-    tctx.strokeStyle = C.zone[b.z];
-    tctx.beginPath(); tctx.moveTo(xa, yOf(a.v)); tctx.lineTo(xb, yOf(b.v)); tctx.stroke();
-  }
-}
-
 // the wheel's angle as a direction from the fall line, -180 to 180: two turns right reads the same as none
 const headAngle = () => input.h - 360*Math.round(input.h/360);
 const headText = () => { const h = headAngle(), a = Math.round(Math.abs(h)); return a < 3 ? 'Fall line' : a > 177 ? 'Straight uphill' : a+'° '+(h<0?'left':'right'); };
@@ -492,54 +462,54 @@ function drawWheel(){
   wctx.setTransform(DPR,0,0,DPR,0,0);
   wctx.clearRect(0,0,WW,WH);
   if (!s) return;
-  const cx = WCX(), cy = WCY(), R = WR, h0 = s.hold*Math.PI/180;
+  const cx = WCX(), cy = WCY(), R = WR, k = R/60, h0 = s.hold*Math.PI/180;   // k: everything scales with the wheel
   const at = (a, r) => [cx + Math.sin(a)*r, cy - Math.cos(a)*r];   // a: radians from the top, clockwise
 
   // fixed ring: inside the green marks the skis speed up, outside they slow down
-  const ring = (a,b,col) => { if (b <= a) return; wctx.beginPath(); wctx.arc(cx,cy,R+9,a-Math.PI/2,b-Math.PI/2); wctx.strokeStyle = col; wctx.lineWidth = 8; wctx.lineCap = 'butt'; wctx.stroke(); };
+  const ring = (a,b,col) => { if (b <= a) return; wctx.beginPath(); wctx.arc(cx,cy,R+9*k,a-Math.PI/2,b-Math.PI/2); wctx.strokeStyle = col; wctx.lineWidth = 8*k; wctx.lineCap = 'butt'; wctx.stroke(); };
   const up = Math.PI;
   wctx.globalAlpha = .45; ring(-Math.PI/2,-h0,C.slow); ring(-h0,h0,C.bad); ring(h0,Math.PI/2,C.slow);
   wctx.globalAlpha = .8; ring(-up,-Math.PI/2,C.slow); ring(Math.PI/2,up,C.slow); wctx.globalAlpha = 1;   // uphill: stops you
   wctx.lineCap = 'round';
   wctx.strokeStyle = C['ink-soft']; wctx.lineWidth = 2;
-  wctx.beginPath(); wctx.moveTo(...at(0, R+4)); wctx.lineTo(...at(0, R+15)); wctx.stroke();
-  wctx.strokeStyle = C.good; wctx.lineWidth = 4;
-  for (const a of [-h0,h0]){ wctx.beginPath(); wctx.moveTo(...at(a, R+3)); wctx.lineTo(...at(a, R+16)); wctx.stroke(); }
-  wctx.font = '500 11px Barlow, sans-serif'; wctx.fillStyle = C['ink-soft']; wctx.textAlign = 'center';
-  wctx.fillText('fall line', cx, cy - R - 20);
+  wctx.beginPath(); wctx.moveTo(...at(0, R+4*k)); wctx.lineTo(...at(0, R+15*k)); wctx.stroke();
+  wctx.strokeStyle = C.good; wctx.lineWidth = 4*k;
+  for (const a of [-h0,h0]){ wctx.beginPath(); wctx.moveTo(...at(a, R+3*k)); wctx.lineTo(...at(a, R+16*k)); wctx.stroke(); }
+  wctx.font = '500 12px Barlow, sans-serif'; wctx.fillStyle = C['ink-soft']; wctx.textAlign = 'center';
+  wctx.fillText('fall line', cx, cy - R - 20*k);
   wctx.strokeStyle = C['ink-soft']; wctx.lineWidth = 2;
-  for (const a of [-Math.PI/2, Math.PI/2]){ wctx.beginPath(); wctx.moveTo(...at(a, R+4)); wctx.lineTo(...at(a, R+15)); wctx.stroke(); }
-  wctx.textAlign = 'right'; wctx.fillText('across', cx - R - 17, cy + 4); wctx.fillText('uphill', ...at(-2.25, R+17));
-  wctx.textAlign = 'left';  wctx.fillText('across', cx + R + 17, cy + 4); wctx.fillText('uphill', ...at(2.25, R+17));
+  for (const a of [-Math.PI/2, Math.PI/2]){ wctx.beginPath(); wctx.moveTo(...at(a, R+4*k)); wctx.lineTo(...at(a, R+15*k)); wctx.stroke(); }
+  wctx.textAlign = 'right'; wctx.fillText('across', cx - R - 17*k, cy + 4); wctx.fillText('uphill', ...at(-2.25, R+17*k));
+  wctx.textAlign = 'left';  wctx.fillText('across', cx + R + 17*k, cy + 4); wctx.fillText('uphill', ...at(2.25, R+17*k));
 
   // the wheel, turned to where the finger put it
   wctx.save(); wctx.translate(cx,cy); wctx.rotate(input.h*Math.PI/180);
-  wctx.strokeStyle = C.ink; wctx.lineWidth = 10;
-  wctx.beginPath(); wctx.arc(0,0,R-5,0,Math.PI*2); wctx.stroke();
+  wctx.strokeStyle = C.ink; wctx.lineWidth = 10*k;
+  wctx.beginPath(); wctx.arc(0,0,R-5*k,0,Math.PI*2); wctx.stroke();
   wctx.strokeStyle = C.panel; wctx.globalAlpha = .35; wctx.lineWidth = 2;
-  for (let i=0;i<24;i++){ const a = i*Math.PI/12; wctx.beginPath(); wctx.moveTo(Math.sin(a)*(R-9), -Math.cos(a)*(R-9)); wctx.lineTo(Math.sin(a)*(R-1), -Math.cos(a)*(R-1)); wctx.stroke(); }
-  wctx.globalAlpha = 1; wctx.strokeStyle = C.ink; wctx.lineWidth = 7;
-  for (const a of [Math.PI/2, Math.PI, 3*Math.PI/2]){ wctx.beginPath(); wctx.moveTo(Math.sin(a)*22, -Math.cos(a)*22); wctx.lineTo(Math.sin(a)*(R-8), -Math.cos(a)*(R-8)); wctx.stroke(); }
-  wctx.fillStyle = C.panel; wctx.strokeStyle = C.ink; wctx.lineWidth = 3;
-  wctx.beginPath(); wctx.arc(0, -(R-5), 7, 0, Math.PI*2); wctx.fill(); wctx.stroke();
+  for (let i=0;i<24;i++){ const a = i*Math.PI/12; wctx.beginPath(); wctx.moveTo(Math.sin(a)*(R-9*k), -Math.cos(a)*(R-9*k)); wctx.lineTo(Math.sin(a)*(R-k), -Math.cos(a)*(R-k)); wctx.stroke(); }
+  wctx.globalAlpha = 1; wctx.strokeStyle = C.ink; wctx.lineWidth = 7*k;
+  for (const a of [Math.PI/2, Math.PI, 3*Math.PI/2]){ wctx.beginPath(); wctx.moveTo(Math.sin(a)*22*k, -Math.cos(a)*22*k); wctx.lineTo(Math.sin(a)*(R-8*k), -Math.cos(a)*(R-8*k)); wctx.stroke(); }
+  wctx.fillStyle = C.panel; wctx.strokeStyle = C.ink; wctx.lineWidth = 3*k;
+  wctx.beginPath(); wctx.arc(0, -(R-5*k), 7*k, 0, Math.PI*2); wctx.fill(); wctx.stroke();
   wctx.restore();
 
   // hub: the skis themselves, which follow the wheel at the rate they can be rotated
   wctx.fillStyle = C.panel; wctx.strokeStyle = C.line; wctx.lineWidth = 1.5;
-  wctx.beginPath(); wctx.arc(cx,cy,24,0,Math.PI*2); wctx.fill(); wctx.stroke();
+  wctx.beginPath(); wctx.arc(cx,cy,24*k,0,Math.PI*2); wctx.fill(); wctx.stroke();
   wctx.save(); wctx.translate(cx,cy); wctx.rotate(s.h);
-  wctx.strokeStyle = C.ink; wctx.lineWidth = 4; wctx.lineCap = 'round';
-  for (const x of [-4,4]){ wctx.beginPath(); wctx.moveTo(x,-15); wctx.lineTo(x,15); wctx.stroke(); }
+  wctx.strokeStyle = C.ink; wctx.lineWidth = 4*k; wctx.lineCap = 'round';
+  for (const x of [-4*k,4*k]){ wctx.beginPath(); wctx.moveTo(x,-15*k); wctx.lineTo(x,15*k); wctx.stroke(); }
   wctx.restore();
 
-  wctx.textAlign = 'left'; wctx.fillStyle = C['ink-soft']; wctx.font = '500 12px Barlow, sans-serif';
-  wctx.fillText('Skis', 6, 16);
-  wctx.fillStyle = C.ink; wctx.font = '700 21px "Barlow Condensed", sans-serif';
-  wctx.fillText(headText(), 6, 38);
-  wctx.textAlign = 'right'; wctx.fillStyle = C['ink-soft']; wctx.font = '500 12px Barlow, sans-serif';
-  wctx.fillText('Holds speed', WW-6, 16);
-  wctx.fillStyle = C.good; wctx.font = '700 21px "Barlow Condensed", sans-serif';
-  wctx.fillText(s.hold < 1 ? 'none' : '±'+Math.round(s.hold)+'°', WW-6, 38);
+  wctx.textAlign = 'left'; wctx.fillStyle = C['ink-soft']; wctx.font = '500 13px Barlow, sans-serif';
+  wctx.fillText('Skis', 6, 17);
+  wctx.fillStyle = C.ink; wctx.font = '700 24px "Barlow Condensed", sans-serif';
+  wctx.fillText(headText(), 6, 42);
+  wctx.textAlign = 'right'; wctx.fillStyle = C['ink-soft']; wctx.font = '500 13px Barlow, sans-serif';
+  wctx.fillText('Holds speed', WW-6, 17);
+  wctx.fillStyle = C.good; wctx.font = '700 24px "Barlow Condensed", sans-serif';
+  wctx.fillText(s.hold < 1 ? 'none' : '±'+Math.round(s.hold)+'°', WW-6, 42);
 }
 
 function updateUI(){
@@ -663,7 +633,7 @@ function frame(now){
     if (mode==='run'){ step(dt); if (mode==='done') showDone(); }
     else if (mode==='fall' || mode==='fallen') stepFall(dt);
   }
-  draw(); drawTrace(); drawWheel(); updateUI();
+  draw(); drawWheel(); updateUI();
   requestAnimationFrame(frame);
 }
 resize();

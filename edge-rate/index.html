@@ -68,23 +68,22 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
 .statsline div{font-size:12px;color:var(--ink-soft)}
 .statsline b{display:block;font:700 26px "Barlow Condensed",sans-serif;color:var(--ink)}
 .controls{padding:8px 16px 14px;border-top:1px solid var(--line);background:var(--panel)}
-.rate-row{display:grid;grid-template-columns:auto 1fr 96px;gap:10px;align-items:center}
-.ratebar{position:relative;height:12px;border-radius:6px;overflow:hidden;
+.rate-row{display:grid;grid-template-columns:auto 1fr 112px;gap:10px;align-items:center}
+.ratebar{position:relative;height:16px;border-radius:8px;overflow:hidden;
   background:linear-gradient(to right,var(--good) 0 var(--t1),var(--warn) var(--t1) var(--t2),var(--bad) var(--t2) 100%);opacity:.9}
 .ratebar i{position:absolute;top:-2px;bottom:-2px;width:4px;margin-left:-2px;background:var(--ink);border-radius:2px;left:0}
-#rateWord{font:700 18px "Barlow Condensed",sans-serif;text-align:right}
-#trace{display:block;width:100%;height:64px;margin:10px 0 8px}
-.slider{position:relative;height:56px;touch-action:none;cursor:grab;outline:none;border-radius:12px}
+#rateWord{font:700 20px "Barlow Condensed",sans-serif;text-align:right}
+.slider{position:relative;height:84px;margin-top:6px;touch-action:none;cursor:grab;outline:none;border-radius:12px}
 .slider:focus-visible{box-shadow:0 0 0 3px var(--gate-b)}
 .slider.active{cursor:grabbing}
-.track{position:absolute;left:22px;right:22px;top:50%;height:8px;margin-top:-4px;border-radius:4px;background:var(--snow-shade)}
-.track .notch{position:absolute;left:50%;top:-8px;bottom:-8px;width:2px;margin-left:-1px;background:var(--ink-soft)}
-.track .tick{position:absolute;top:-4px;bottom:-4px;width:1px;background:var(--line)}
+.track{position:absolute;left:34px;right:34px;top:50%;height:12px;margin-top:-6px;border-radius:6px;background:var(--snow-shade)}
+.track .notch{position:absolute;left:50%;top:-11px;bottom:-11px;width:2px;margin-left:-1px;background:var(--ink-soft)}
+.track .tick{position:absolute;top:-6px;bottom:-6px;width:1px;background:var(--line)}
 .fill{position:absolute;top:0;bottom:0;border-radius:4px;background:var(--good)}
-.thumb{position:absolute;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:var(--panel);border:3px solid var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.18)}
-.thumb::after{content:"";position:absolute;left:50%;top:9px;bottom:9px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--ink)}
-.slider-labels{display:flex;justify-content:space-between;font-size:13px;color:var(--ink-soft);padding:0 4px}
-#edgeVal{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.thumb{position:absolute;top:50%;width:66px;height:66px;margin:-33px 0 0 -33px;border-radius:50%;background:var(--panel);border:3px solid var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.18)}
+.thumb::after{content:"";position:absolute;left:50%;top:14px;bottom:14px;width:4px;margin-left:-2px;border-radius:2px;background:var(--ink)}
+.slider-labels{display:flex;justify-content:space-between;font-size:15px;color:var(--ink-soft);padding:0 4px}
+#edgeVal{font-size:17px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion: reduce){.balance .bar i{transition:none}}
 </style>
 </head>
@@ -108,7 +107,6 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
       <div class="ratebar" id="ratebar"><i id="needle"></i></div>
       <span id="rateWord">–</span>
     </div>
-    <canvas id="trace" aria-label="Edge angle over the last six seconds"></canvas>
     <div class="slider" id="slider" tabindex="0" role="slider" aria-label="Edge angle" aria-valuemin="-55" aria-valuemax="55" aria-valuenow="0">
       <div class="track" id="track">
         <span class="tick" style="left:13.6%"></span><span class="tick" style="left:31.8%"></span>
@@ -137,7 +135,6 @@ const WORDS = ['progressively','quickly','abruptly'];
 
 const $ = id => document.getElementById(id);
 const cv = $('slope'), ctx = cv.getContext('2d');
-const tc = $('trace'), tctx = tc.getContext('2d');
 const overlay = $('overlay'), card = $('card');
 const slider = $('slider'), track = $('track'), thumb = $('thumb'), fill = $('fill');
 
@@ -151,16 +148,13 @@ function readColors(){
 readColors();
 try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); }catch(e){}
 
-let W=0,H=0,DPR=1,ppm=10,TW=0,TH=0;
+let W=0,H=0,DPR=1,ppm=10;
 function resize(){
   DPR = Math.min(window.devicePixelRatio||1, 2);
   const r = cv.getBoundingClientRect();
   W = r.width; H = r.height;
   cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
   ppm = W / VIEW_W;
-  const tr = tc.getBoundingClientRect();
-  TW = tr.width; TH = tr.height;
-  tc.width = Math.round(TW*DPR); tc.height = Math.round(TH*DPR);
 }
 window.addEventListener('resize', resize);
 
@@ -177,7 +171,7 @@ function newRun(){
   input.edge = 0;
   s = { T, x:course.startX, y:0, v:5, h:0, edge:0, prevEdge:0, rate:0, rateFast:0, jerk:0, bal:100,
         gates, gi:0, passed:0, finishY: gates[GATE_COUNT-1].y + 25,
-        tRun:0, tProg:0, peak:0, tracks:[], trace:[], flash:null, offCool:0, edgeHitT:-1, fallWord:'',
+        tRun:0, tProg:0, peak:0, tracks:[], flash:null, offCool:0, edgeHitT:-1, fallWord:'',
         fallT:0, spin:0, cause:'', spray:[] };
   $('ratebar').style.setProperty('--t1', (T.t1/(T.t2*1.5)*100)+'%');
   $('ratebar').style.setProperty('--t2', (100/1.5)+'%');
@@ -319,12 +313,10 @@ function step(dt){
   }
   if (s.y >= s.finishY){ mode = 'done'; return; }
 
-  // tracks + trace
+  // tracks
   const last = s.tracks[s.tracks.length-1];
   if (!last || Math.hypot(s.x-last.x, s.y-last.y) > 0.25) s.tracks.push({x:s.x, y:s.y, h:s.h, z:zone});
   while (s.tracks.length && s.y - s.tracks[0].y > 70) s.tracks.shift();
-  s.trace.push({t:s.tRun, e:s.edge, z:zone});
-  while (s.trace.length && s.tRun - s.trace[0].t > 6) s.trace.shift();
   if (s.flash){ s.flash.t -= dt; if (s.flash.t<=0) s.flash = null; }
 }
 
@@ -448,25 +440,6 @@ function drawSkier(){
 }
 function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 
-function drawTrace(){
-  tctx.setTransform(DPR,0,0,DPR,0,0);
-  tctx.clearRect(0,0,TW,TH);
-  const pad = 4, mid = TH/2, amp = (TH/2 - pad);
-  tctx.strokeStyle = C.line; tctx.lineWidth = 1; tctx.setLineDash([3,4]);
-  tctx.beginPath(); tctx.moveTo(0,mid+.5); tctx.lineTo(TW,mid+.5); tctx.stroke(); tctx.setLineDash([]);
-  tctx.font = '500 11px Barlow, sans-serif'; tctx.fillStyle = C['ink-soft']; tctx.textAlign = 'left';
-  tctx.fillText('right', 2, 11); tctx.fillText('flat', 2, mid-3); tctx.fillText('left', 2, TH-3);
-  if (!s || s.trace.length < 2) return;
-  const tEnd = s.tRun, x0 = 34;
-  tctx.lineWidth = 2.5; tctx.lineCap = 'round';
-  for (let i=1;i<s.trace.length;i++){
-    const a = s.trace[i-1], b = s.trace[i];
-    const xa = x0 + (1 - (tEnd-a.t)/6)*(TW-x0), xb = x0 + (1 - (tEnd-b.t)/6)*(TW-x0);
-    tctx.strokeStyle = C.zone[b.z];
-    tctx.beginPath(); tctx.moveTo(xa, mid - a.e/EDGE_MAX*amp); tctx.lineTo(xb, mid - b.e/EDGE_MAX*amp); tctx.stroke();
-  }
-}
-
 function updateUI(){
   $('pause').style.visibility = mode==='run' ? 'visible' : 'hidden';
   const T = s.T;
@@ -522,7 +495,7 @@ function showMenu(){
     <h1>Edging</h1>
     <p class="src">Rate is the speed at which movement occurs. <br>ATM, Chapter 6</p>
     <p>Drag the slider to tip your skis on edge and link turns through the gates. Increase and decrease edge angle progressively. Move it abruptly and you’ll fall.</p>
-    <p style="font-size:14px;color:var(--ink-soft)">Your tracks and the trace show your rate: green is progressive, amber is quick, red is abrupt.</p>
+    <p style="font-size:14px;color:var(--ink-soft)">Your tracks and the rate bar show your rate: green is progressive, amber is quick, red is abrupt.</p>
     ${chipsHTML()}
     <div class="best">${bestText()}</div>
     <button class="btn" id="go">Start run</button>`;
@@ -589,7 +562,7 @@ function frame(now){
     if (mode==='run'){ step(dt); if (mode==='done') showDone(); }
     else if (mode==='fall' || mode==='fallen') stepFall(dt);
   }
-  draw(); drawTrace(); updateUI();
+  draw(); updateUI();
   requestAnimationFrame(frame);
 }
 resize();

@@ -71,23 +71,22 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
 .statsline div{font-size:12px;color:var(--ink-soft)}
 .statsline b{display:block;font:700 26px "Barlow Condensed",sans-serif;color:var(--ink)}
 .controls{padding:8px 16px 14px;border-top:1px solid var(--line);background:var(--panel)}
-.meter-row{display:grid;grid-template-columns:auto 1fr 96px;gap:10px;align-items:center}
-.meter{position:relative;height:12px;border-radius:6px;overflow:hidden;opacity:.9;
+.meter-row{display:grid;grid-template-columns:auto 1fr 112px;gap:10px;align-items:center}
+.meter{position:relative;height:16px;border-radius:8px;overflow:hidden;opacity:.9;
   background:linear-gradient(to right,var(--bad) 0 var(--r1),var(--warn) var(--r1) var(--r2),var(--good) var(--r2) var(--r3),var(--warn) var(--r3) var(--r4),var(--bad) var(--r4) 100%)}
 .meter i{position:absolute;top:-2px;bottom:-2px;width:4px;margin-left:-2px;background:var(--ink);border-radius:2px;left:50%}
-.meter-ends{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-soft);margin:2px 106px 0 calc(10px + 4.6em)}
-#meterWord{font:700 18px "Barlow Condensed",sans-serif;text-align:right}
-#trace{display:block;width:100%;height:56px;margin:8px 0 6px}
-.slider{position:relative;height:56px;touch-action:none;cursor:grab;outline:none;border-radius:12px}
+.meter-ends{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-soft);margin:2px 122px 0 calc(10px + 4.6em)}
+#meterWord{font:700 20px "Barlow Condensed",sans-serif;text-align:right}
+.slider{position:relative;height:84px;margin-top:6px;touch-action:none;cursor:grab;outline:none;border-radius:12px}
 .slider:focus-visible{box-shadow:0 0 0 3px var(--cool)}
 .slider.active{cursor:grabbing}
-.track{position:absolute;left:22px;right:22px;top:50%;height:8px;margin-top:-4px;border-radius:4px;background:var(--snow-shade)}
-.track .target{position:absolute;top:-5px;bottom:-5px;border-radius:5px;background:var(--good);opacity:.35}
-.track .notch{position:absolute;left:50%;top:-8px;bottom:-8px;width:2px;margin-left:-1px;background:var(--ink-soft)}
-.thumb{position:absolute;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:var(--panel);border:3px solid var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.18)}
-.thumb::after{content:"";position:absolute;left:50%;top:9px;bottom:9px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--ink)}
-.slider-labels{display:flex;justify-content:space-between;font-size:13px;color:var(--ink-soft);padding:0 4px}
-#splitVal{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.track{position:absolute;left:34px;right:34px;top:50%;height:12px;margin-top:-6px;border-radius:6px;background:var(--snow-shade)}
+.track .target{position:absolute;top:-8px;bottom:-8px;border-radius:7px;background:var(--good);opacity:.35}
+.track .notch{position:absolute;left:50%;top:-11px;bottom:-11px;width:2px;margin-left:-1px;background:var(--ink-soft)}
+.thumb{position:absolute;top:50%;width:66px;height:66px;margin:-33px 0 0 -33px;border-radius:50%;background:var(--panel);border:3px solid var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.18)}
+.thumb::after{content:"";position:absolute;left:50%;top:14px;bottom:14px;width:4px;margin-left:-2px;border-radius:2px;background:var(--ink)}
+.slider-labels{display:flex;justify-content:space-between;font-size:15px;color:var(--ink-soft);padding:0 4px}
+#splitVal{font-size:17px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion: reduce){.balance .bar i{transition:none}}
 </style>
 </head>
@@ -112,7 +111,6 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
       <span id="meterWord">–</span>
     </div>
     <div class="meter-ends"><span>left ski</span><span>right ski</span></div>
-    <canvas id="trace" aria-label="Pressure split and what the turn asks for, over the last six seconds"></canvas>
     <div class="slider" id="slider" tabindex="0" role="slider" aria-label="Pressure from left ski to right ski" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
       <div class="track" id="track">
         <div class="target" id="target"></div>
@@ -146,7 +144,6 @@ const TRAILS = {
 
 const $ = id => document.getElementById(id);
 const cv = $('slope'), ctx = cv.getContext('2d');
-const tc = $('trace'), tctx = tc.getContext('2d');
 const overlay = $('overlay'), card = $('card');
 const slider = $('slider'), track = $('track'), thumb = $('thumb');
 
@@ -160,16 +157,13 @@ function readColors(){
 readColors();
 try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); }catch(e){}
 
-let W=0,H=0,DPR=1,TW=0,TH=0,HZ=0,FL=0;
+let W=0,H=0,DPR=1,HZ=0,FL=0;
 function resize(){
   DPR = Math.min(window.devicePixelRatio||1, 2);
   const r = cv.getBoundingClientRect();
   W = r.width; H = r.height;
   cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
   HZ = H*0.3; FL = (H*0.86 - HZ)*ZS/CH;           // horizon at 30% down, the skier's feet at 86%
-  const tr = tc.getBoundingClientRect();
-  TW = tr.width; TH = tr.height;
-  tc.width = Math.round(TW*DPR); tc.height = Math.round(TH*DPR);
 }
 window.addEventListener('resize', resize);
 
@@ -209,7 +203,7 @@ function newRun(){
   input.p = 0;
   s = { T, v:T.kmh/3.6, dist:0, p:0, prevP:0, target:0, side:0, err:0, zone:0, inside:false, bal:100, heading:0, lean:0,
         tRun:0, tBal:0, tIn:0, tOver:0, xfer:null,
-        grades:[], flash:null, trace:[], fallT:0, cause:'', fallInside:true, hinted:false };
+        grades:[], flash:null, fallT:0, cause:'', fallInside:true, hinted:false };
 }
 
 // ---------- slider input ----------
@@ -312,8 +306,6 @@ function step(dt){
     return;
   }
   if (s.dist >= CO.len - 20){ mode = 'done'; return; }
-  s.trace.push({t:s.tRun, p:s.p, g:s.target, z:zone});
-  while (s.trace.length && s.tRun - s.trace[0].t > 6) s.trace.shift();
   if (s.flash){ s.flash.t -= dt; if (s.flash.t<=0) s.flash = null; }
 }
 
@@ -493,26 +485,6 @@ function drawSkier(){
   ctx.restore();
 }
 
-function drawTrace(){
-  tctx.setTransform(DPR,0,0,DPR,0,0);
-  tctx.clearRect(0,0,TW,TH);
-  const pad = 4, mid = TH/2, amp = TH/2 - pad, x0 = 40, yOf = p => mid - clamp(p, -1, 1)*amp;
-  tctx.strokeStyle = C.line; tctx.lineWidth = 1; tctx.setLineDash([3,4]);
-  tctx.beginPath(); tctx.moveTo(x0, mid+.5); tctx.lineTo(TW, mid+.5); tctx.stroke(); tctx.setLineDash([]);
-  tctx.font = '500 11px Barlow, sans-serif'; tctx.fillStyle = C['ink-soft']; tctx.textAlign = 'left';
-  tctx.fillText('right', 2, 11); tctx.fillText('both', 2, mid+4); tctx.fillText('left', 2, TH-3);
-  if (!s || s.trace.length < 2) return;
-  const tEnd = s.tRun, X = t => x0 + (1 - (tEnd - t)/6)*(TW - x0);
-  tctx.strokeStyle = C['ink-soft']; tctx.lineWidth = 1.5; tctx.setLineDash([4,3]);   // what the turn asked for
-  tctx.beginPath(); s.trace.forEach((a, i) => i ? tctx.lineTo(X(a.t), yOf(a.g)) : tctx.moveTo(X(a.t), yOf(a.g))); tctx.stroke(); tctx.setLineDash([]);
-  tctx.lineWidth = 2.5; tctx.lineCap = 'round';
-  for (let i=1;i<s.trace.length;i++){
-    const a = s.trace[i-1], b = s.trace[i];
-    tctx.strokeStyle = C.zone[b.z];
-    tctx.beginPath(); tctx.moveTo(X(a.t), yOf(a.p)); tctx.lineTo(X(b.t), yOf(b.p)); tctx.stroke();
-  }
-}
-
 function updateUI(){
   $('pause').style.visibility = mode==='run' ? 'visible' : 'hidden';
   $('balanced').textContent = s.tRun > 0.5 ? Math.round(s.tBal/s.tRun*100)+'%' : '–';
@@ -647,7 +619,7 @@ function frame(now){
     if (mode==='run'){ step(dt); if (mode==='done') showDone(); }
     else if (mode==='fall' || mode==='fallen') stepFall(dt);
   }
-  draw(); drawTrace(); updateUI();
+  draw(); updateUI();
   requestAnimationFrame(frame);
 }
 resize();

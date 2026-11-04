@@ -486,7 +486,7 @@ function updateUI(){
   }
   $('edgeVal').textContent = Math.abs(e) < 2 ? 'flat' : Math.abs(e) + '° ' + (e > 0 ? 'left' : 'right');
   const rv = Math.round(Math.abs(s.uEff)*ROT_MAX);
-  $('rotVal').textContent = s.steady > 0.15 && Math.abs(s.theta) >= 8*DEG ? (s.state === 'carve' ? 'steadying the carve' : 'steadying the edge') : rv < 3 ? '0°/s' : rv + '°/s ' + (s.uEff > 0 ? 'left' : 'right');
+  $('rotVal').textContent = s.steady > 0.15 && Math.abs(s.theta) >= 8*DEG ? 'steadying' : rv < 3 ? '0°/s' : rv + '°/s ' + (s.uEff > 0 ? 'left' : 'right');
   $('iconEdge').setAttribute('transform', `rotate(${-s.theta/DEG})`);       // the cross-section, tipping
   $('iconRot').setAttribute('transform', `rotate(${-s.beta/DEG})`);         // the ski from above, against its travel
 }

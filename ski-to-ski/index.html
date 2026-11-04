@@ -297,11 +297,13 @@ function step(dt){
   if (zone===0) s.tBal += dt; else if (s.inside) s.tIn += dt; else s.tOver += dt;
 
   if (s.bal <= 0 || (s.inside && e >= IN_FALL)){
-    const prev = CO.turns.filter(t => (t.s0 + t.s1)/2 <= s.dist).pop(), stale = !s.inside && prev && s.p*prev.dir > OUT1;   // the turn you're leaving: its apex is behind you
+    // the turn you're leaving: its apex is behind you and its demand has eased below the share a transfer is timed on
+    const prev = CO.turns.filter(t => (t.s0 + t.s1)/2 <= s.dist).pop();
+    const stale = !s.inside && prev && s.p*prev.dir > OUT1 && s.target*prev.dir < XFER*prev.peak;
     s.fallInside = s.inside || stale;
     s.cause = s.inside ? 'Your hips were too far toward the inside ski, so the skis slipped.'
             : stale ? 'Your hips stayed over the old outside ski too long, so the new outside ski stayed light.'
-            : 'Your hips stayed too far toward one ski in a straight or gentle turn, so the other ski went light.';
+            : 'Your hips moved further toward one ski than the turn asked for, so the other ski went light.';
     s.bal = 0; mode = 'fall'; s.fallT = 0; s.fallSide = s.lean >= 0 ? 1 : -1;
     return;
   }
@@ -578,7 +580,7 @@ function results(title, lead){
 }
 function showFall(){
   const advice = s.fallInside ? 'Move your hips toward the new outside ski early, then progressively more as the turn tightens, so the inside ski stays light.'
-                              : 'Keep your hips nearer the middle throughout straights and gentle turns, so both skis carry weight.';
+                              : 'Move your hips only as far toward one ski as the green band shows, so the other ski keeps some weight.';
   results('Fell', `<p class="cause">${s.cause}</p><p>${advice}</p>`);
 }
 function showDone(){

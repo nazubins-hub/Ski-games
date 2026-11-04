@@ -110,14 +110,15 @@ const TRAIL_W = 30, VIEW_W = 34;   // the skis turn freely: past 90 deg they poi
 const ROT_RATE = 150;            // deg/s: how fast the skis rotate toward where the wheel points
 const G = 9.81, MU = 0.05, DRAG = 0.006;
 const SKID = 2.5;                // m/s² of braking with the skis fully across the hill, scaled by sin²
-const FALL_X = 1.8;              // fall once speed passes this multiple of the target
+const FALL_X = 2.0;              // fall once speed passes this multiple of the target
 const TRAILS = {
   // target and band in km/h; pitch is [distance down the fall line (m), slope (deg)].
   // uphillSkid: speed lost per radian the skis turn while pointing up the hill (kept: e^-(uphillSkid x angle)),
-  // set so a full circle needs the top of the trail's speed range, about 90% of the speed that ends in a fall
-  green:{name:'Green', target:18, band:4, len:320, uphillSkid:.27, pitch:[[0,8],[70,12],[140,9],[200,14],[260,10]]},
-  blue: {name:'Blue',  target:24, band:4, len:320, uphillSkid:.36, pitch:[[0,13],[70,19],[130,14],[190,23],[250,16]]},
-  black:{name:'Black', target:30, band:5, len:320, uphillSkid:.42, pitch:[[0,18],[60,26],[120,20],[180,30],[240,22]]}
+  // set so a full circle at ROT_RATE needs about 90% of the speed that ends in a fall (target x FALL_X; roughly
+  // 80-96% depending on the pitch and how the turn starts). It scales with FALL_X: re-tune both together
+  green:{name:'Green', target:18, band:5, len:320, uphillSkid:.32, pitch:[[0,8],[70,12],[140,9],[200,14],[260,10]]},
+  blue: {name:'Blue',  target:24, band:5, len:320, uphillSkid:.41, pitch:[[0,13],[70,19],[130,14],[190,23],[250,16]]},
+  black:{name:'Black', target:30, band:6, len:320, uphillSkid:.47, pitch:[[0,18],[60,26],[120,20],[180,30],[240,22]]}
 };
 const WORDS = ['slow','steady','fast'];
 
@@ -549,7 +550,8 @@ function wireChips(){
   card.querySelectorAll('.chip').forEach(b => b.onclick = () => {
     trailKey = b.dataset.k; try{ localStorage.setItem('rotary.trail', trailKey); }catch(e){}
     card.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', c===b));
-    const be = card.querySelector('.best'); if (be) be.textContent = bestText();
+    // the menu's best line sits beside the target line, so update only its own span
+    const be = card.querySelector('.bestv') || card.querySelector('.best'); if (be) be.textContent = bestText();
     const tg = card.querySelector('.target'); if (tg) tg.textContent = targetText();
     newRun();
   });
@@ -565,7 +567,7 @@ function showMenu(){
     <p class="src">“Consistent speed is created by turn shape.” National Alpine Activities List</p>
     <p style="font-size:14px;color:var(--ink-soft)">The pitch changes as you go, so one turn shape won’t hold your speed. The green marks around the wheel show the ski direction that holds it right now: inside them you speed up, outside them you slow down.</p>
     ${chipsHTML()}
-    <div class="best"><b class="target" style="color:var(--ink)">${targetText()}</b><br>${bestText()}</div>
+    <div class="best"><b class="target" style="color:var(--ink)">${targetText()}</b><br><span class="bestv">${bestText()}</span></div>
     <button class="btn" id="go">Start run</button>`;
   wireChips();
   $('go').onclick = start;

@@ -341,7 +341,7 @@ function step(dt){
       const gap = flew ? ABSORB*(thl - Math.atan2(-s.vy, s.vx)) : thl - s.takeoffAng;
       s.d += (1-FOLLOW)*(gap*DEG - s.spinAcc); s.skiAng = thl;
       if (flew){ s.landT = s.tRun; s.jumps++; s.landPending = true; }
-      if (impact > 5) s.bal -= (impact - 5)*12;
+      if (impact > 5.5) s.bal -= (impact - 5.5)*10.5;
       for (let i=0;i<14;i++) s.spray.push({x:s.x + (Math.random()-.5)*1.4, y:s.y, vx:s.v*Math.cos(thl)*.4 + (Math.random()-.5)*3, vy:1 + Math.random()*3, life:.7});
     }
   }
@@ -387,13 +387,13 @@ function step(dt){
 
   // balance drains only with weight on the skis
   if (!s.air){
-    if (zone===0) s.bal += 10*dt;
+    if (zone===0) s.bal += 14*dt;
     else if (s.press) {}                         // a held press is controlled: it costs no balance
     else if (steadyIn) {}                         // settling into one: committed and controlled, so it costs nothing
     else if (!s.air && a >= B1 && a < B2) s.bal -= 2*SETTLE*dt;
     // your own hips past the band: a hard push, so the red there drains slower than a slip into it
     else if (a >= B2 && side*s.hips >= B2) s.bal -= (2*SETTLE + (a-B2)*20)*dt;
-    else if (zone===1) s.bal -= (20 + (a-C1)/(C2-C1)*50)*dt;
+    else if (zone===1) s.bal -= (14 + (a-C1)/(C2-C1)*31)*dt;
     else s.bal -= (150 + (a-C2)*10)*dt;
   }
   s.bal = Math.min(100, s.bal);

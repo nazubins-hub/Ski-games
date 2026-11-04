@@ -125,11 +125,11 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
 (function(){
 const EDGE_MAX = 55, TRAIL_W = 30, GATE_HALF = 2.6, GATE_COUNT = 25, VIEW_W = 34;
 const TRAILS = {
-  // refA/refH: the reference skier's peak edge angle and the heading where it changes edges.
-  // The course is set on the line that skier leaves while edging at half the progressive limit.
-  green:{name:'Green', slope:10, refA:30, refH:20, gw:3.6, t1:70, t2:125},
-  blue: {name:'Blue',  slope:15, refA:25, refH:15, gw:3.0, t1:55, t2:100},
-  black:{name:'Black', slope:20, refA:25, refH:15, gw:2.8, t1:45, t2:80}
+  // refA/refH/refR: the reference skier's peak edge angle, the heading where it changes edges, and its edging rate (deg/s).
+  // The course is set on the line that skier leaves; refR is fixed so the gates stay put when t1 is tuned.
+  green:{name:'Green', slope:10, refA:30, refH:20, refR:35,   gw:4.2, t1:70, t2:150},
+  blue: {name:'Blue',  slope:15, refA:25, refH:15, refR:27.5, gw:3.5, t1:63, t2:120},
+  black:{name:'Black', slope:20, refA:25, refH:15, refR:22.5, gw:3.2, t1:52, t2:96}
 };
 const WORDS = ['progressively','quickly','abruptly'];
 
@@ -173,8 +173,8 @@ function newRun(){
         gates, gi:0, passed:0, finishY: gates[GATE_COUNT-1].y + 25,
         tRun:0, tProg:0, peak:0, tracks:[], flash:null, offCool:0, edgeHitT:-1, fallWord:'',
         fallT:0, spin:0, cause:'', spray:[] };
-  $('ratebar').style.setProperty('--t1', (T.t1/(T.t2*1.5)*100)+'%');
-  $('ratebar').style.setProperty('--t2', (100/1.5)+'%');
+  $('ratebar').style.setProperty('--t1', (T.t1/(T.t2*1.25)*100)+'%');
+  $('ratebar').style.setProperty('--t2', (100/1.25)+'%');
 }
 
 // shared ski physics: edge angle (deg) turns the skis, gravity and drag set speed
@@ -190,7 +190,7 @@ function move(st, edgeDeg, dt, slopeDeg){
 }
 // ski a reference run with progressive edging; gates go where its line crosses the fall line
 function buildCourse(T){
-  const R = 0.5*T.t1, Hs = T.refH*Math.PI/180, dt = 1/120, st = {x:0,y:0,v:5,h:0};
+  const R = T.refR, Hs = T.refH*Math.PI/180, dt = 1/120, st = {x:0,y:0,v:5,h:0};
   let t = 0, e = 0, sgn = 1, pdx = 0, px = 0; const pts = [];
   while (pts.length < GATE_COUNT && t < 600){
     if (t > 1.2){
@@ -269,17 +269,17 @@ function step(dt){
   s.tRun += dt; if (zone===0) s.tProg += dt;
 
   // balance
-  if (zone===0) s.bal += 9*dt;
-  else if (zone===1) s.bal -= (25 + (r-T.t1)/(T.t2-T.t1)*75)*dt;
+  if (zone===0) s.bal += 12*dt;
+  else if (zone===1) s.bal -= (20 + (r-T.t1)/(T.t2-T.t1)*65)*dt;
   else s.bal -= (280 + (r-T.t2)*5)*dt;
   if (j > jLimit) s.bal -= (j-jLimit)*0.09*dt;
   s.bal = Math.min(100, s.bal);
 
   const rf = Math.abs(s.rateFast);
-  if (s.bal <= 0 || r > T.t2*1.5 || rf > T.t2*1.5){
+  if (s.bal <= 0 || r > T.t2*1.25 || rf > T.t2*1.25){
     s.peak = Math.max(s.peak, rf);
     const rm = Math.max(r, rf), increasing = Math.sign(rf > r ? s.rateFast : s.rate)===Math.sign(s.edge) && Math.abs(s.edge) > 3;
-    if (rm < T.t2*1.5 && s.edgeHitT >= 0 && s.tRun - s.edgeHitT < 0.25){
+    if (rm < T.t2*1.25 && s.edgeHitT >= 0 && s.tRun - s.edgeHitT < 0.25){
       s.fallWord = ''; s.cause = 'The skis ran into the side of the trail with too little balance left.';
     } else if (rm < T.t1){
       s.fallWord = 'abruptly'; s.cause = 'You started and stopped the edging movement abruptly, so you lost balance.';
@@ -288,6 +288,8 @@ function step(dt){
     } else {
       s.fallWord = 'abruptly'; s.cause = increasing ? 'You tipped the skis onto edge abruptly, so you lost balance.' : 'You flattened the skis abruptly, so you lost balance.';
     }
+    // the bar freezes for the fall: show the reading the fall was judged on, so it agrees with the card
+    if (s.fallWord){ s.zone = WORDS.indexOf(s.fallWord); if (rm > r) s.rate = Math.sign(s.rateFast)*rm; }
     s.bal = 0; mode = 'fall'; s.fallT = 0; s.spin = (Math.random()<.5?-1:1)*(4+Math.random()*3);
     for (let i=0;i<26;i++) s.spray.push({x:s.x, y:s.y, vx:(Math.random()-.5)*6 + s.v*Math.sin(s.h)*.5, vy:Math.random()*4 + s.v*Math.cos(s.h)*.5, life:1});
     return;
@@ -301,7 +303,7 @@ function step(dt){
   const lim = TRAIL_W/2 - 0.6;
   if (Math.abs(s.x) > lim){
     s.x = Math.sign(s.x)*lim; s.h *= 0.3;
-    if (s.offCool <= 0){ s.v *= 0.7; s.bal -= 15; s.offCool = 1; s.edgeHitT = s.tRun; s.flash = {text:'Off the trail', t:1.2, c:C.warn}; }
+    if (s.offCool <= 0){ s.v *= 0.7; s.bal -= 10; s.offCool = 1; s.edgeHitT = s.tRun; s.flash = {text:'Off the trail', t:1.2, c:C.warn}; }
   }
 
   // gates
@@ -449,7 +451,7 @@ function updateUI(){
   const bf = $('balFill'); bf.style.width = Math.max(0,s.bal)+'%';
   bf.style.backgroundColor = s.bal > 60 ? C.good : s.bal > 30 ? C.warn : C.bad;
   const r = Math.abs(s.rate);
-  $('needle').style.left = Math.min(100, r/(T.t2*1.5)*100)+'%';
+  $('needle').style.left = Math.min(100, r/(T.t2*1.25)*100)+'%';
   const z = r < 4 ? -1 : (s.zone ?? 0);
   const rw = $('rateWord'); rw.textContent = z<0 ? 'holding' : WORDS[z]; rw.style.color = z<0 ? C['ink-soft'] : C.zone[z];
   const pct = (input.edge + EDGE_MAX)/(2*EDGE_MAX)*100;

@@ -93,7 +93,7 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
 
   <div class="stage" id="stage">
     <canvas id="view" aria-label="3D view of a pair of skis moving through snow"></canvas>
-    <span class="flexnote">ski flex shown 6×</span>
+    <span class="flexnote">ski bend shown 6×</span>
     <button class="reset" id="reset">Reset view</button>
   </div>
 
@@ -113,7 +113,7 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
       <div class="knob" id="knobEdge"><svg width="30" height="30" viewBox="-15 -15 30 30" aria-hidden="true"><g id="iconEdge"><rect x="-11" y="-2.5" width="22" height="5" rx="1.5" fill="currentColor"/></g><line x1="-14" y1="7" x2="14" y2="7" stroke="currentColor" stroke-width="1" opacity=".4"/></svg></div>
       <span class="hint">drag ← tip left · tip right →</span>
     </div>
-    <div class="pad" id="padRot" tabindex="0" role="slider" aria-label="Rotation" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
+    <div class="pad" id="padRot" tabindex="0" role="slider" aria-label="Rotate" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
       <span class="lab">Rotate</span><span class="val" id="rotVal">0°/s</span>
       <div class="rail"></div>
       <div class="knob" id="knobRot"><svg width="30" height="30" viewBox="-15 -15 30 30" aria-hidden="true"><g id="iconRot"><path d="M-3 12 L-3.5 -9 Q0 -14 3.5 -9 L3 12 Z" fill="currentColor"/></g></svg></div>
@@ -122,13 +122,13 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
   </section>
   <div class="overlay" id="overlay"><div class="card" id="card">
     <h2>Magnitude of Pressure</h2>
-    <p class="src">Control how much pressure the skis build against the snow.</p>
-    <p>Two thumbs: <b>Edge</b> tips the skis, <b>Rotate</b> turns them. Use them alone and together and watch the skis bend, the tracks they leave and the push from the snow.</p>
+    <p>Control how much pressure the skis build against the snow. Two thumbs: <b>Edge</b> tips the skis, <b>Rotate</b> turns them. Use them alone and together and watch the skis bend, the tracks they leave and the push from the snow.</p>
+    <p class="src">PSIA-AASI Alpine fundamental: “Regulate the magnitude of pressure created through ski/snow interaction.”</p>
     <ul>
-      <li><b>Edge only:</b> a carve. The sidecut bends the ski into a clean arc; more edge, tighter turn, more pressure.</li>
-      <li><b>Rotate only:</b> a pivot slip. The flat skis slide sideways with almost no pressure.</li>
-      <li><b>Both, the same way:</b> a skid. The edge bites into the slide, pressure builds and speed scrubs off. Rotate hard, then edge: an edge set.</li>
-      <li><b>Rotate against the edge:</b> it can’t turn the skis that way. It steadies them along the edge instead, for a clean carve.</li>
+      <li><b>Edge only:</b> with enough edge, a carve. The sidecut bends the ski into an arc; more edge, tighter turn, more pressure.</li>
+      <li><b>Rotate only:</b> a pivot slip. The flat skis slide sideways and add almost no pressure.</li>
+      <li><b>Both, the same way:</b> a skid. The edge bites into the slide, pressure builds and speed scrubs off. Rotate a lot, then edge quickly: an edge set.</li>
+      <li><b>Rotate against the edge:</b> once the edges engage, it can’t turn the skis that way. It steadies them along the edge instead, so any skid dies out and the skis carve.</li>
       <li>Speed multiplies it all. Drag the view to look from any side.</li>
     </ul>
     <button class="btn" id="go">Start</button>
@@ -486,7 +486,7 @@ function updateUI(){
   }
   $('edgeVal').textContent = Math.abs(e) < 2 ? 'flat' : Math.abs(e) + '° ' + (e > 0 ? 'left' : 'right');
   const rv = Math.round(Math.abs(s.uEff)*ROT_MAX);
-  $('rotVal').textContent = s.steady > 0.15 ? 'steadying the carve' : rv < 3 ? '0°/s' : rv + '°/s ' + (s.uEff > 0 ? 'left' : 'right');
+  $('rotVal').textContent = s.steady > 0.15 && Math.abs(s.theta) >= 8*DEG ? (s.state === 'carve' ? 'steadying the carve' : 'steadying the edge') : rv < 3 ? '0°/s' : rv + '°/s ' + (s.uEff > 0 ? 'left' : 'right');
   $('iconEdge').setAttribute('transform', `rotate(${-s.theta/DEG})`);       // the cross-section, tipping
   $('iconRot').setAttribute('transform', `rotate(${-s.beta/DEG})`);         // the ski from above, against its travel
 }

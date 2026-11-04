@@ -94,7 +94,7 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
 <body>
 <main class="app">
   <header class="hud">
-    <div class="stat"><span class="k">Centred</span><span class="v" id="centred">–</span></div>
+    <div class="stat"><span class="k">Centered</span><span class="v" id="centred">–</span></div>
     <div class="stat"><span class="k">Air</span><span class="v" id="air">0.0</span></div>
     <div class="stat"><span class="k">Press</span><span class="v" id="press">0.0</span></div>
     <div class="balance"><span class="k">Balance</span><div class="bar"><i id="balFill"></i></div></div>
@@ -121,7 +121,7 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
         <div class="thumb" id="thumb" style="left:50%"></div>
       </div>
     </div>
-    <div class="slider-labels"><span>Back</span><span id="hipVal">Centred</span><span>Forward</span></div>
+    <div class="slider-labels"><span>Back</span><span id="hipVal">Centered</span><span>Forward</span></div>
   </section>
   <div class="overlay" id="overlay"><div class="card" id="card"></div></div>
 </main>
@@ -130,10 +130,10 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
 (function(){
 const U_MAX = 30;                // deg: how far the hips can move forward or back of centre
 const C1 = 6, C2 = 14, C3 = 30;  // |balance| deg: centred, off-centre, gone (fall)
-const B1 = 15, B2 = 21;          // |balance| deg: the butter band, out past where too far begins
+const B1 = 14, B2 = 25;          // |balance| deg: the butter band, from where the amber ends out toward a fall
 const HOLD1 = 13;                // once a press is on, it holds down to here, so it can be kept
-const SETTLE = 35;               // balance/s while held steady in the band before the press takes; unsteady there, twice that
-const STEADY = 15;               // deg/s: steadier than this in the band starts a press; drifting through doesn't
+const SETTLE = 35;               // balance/s: moving about in the band before a press takes costs twice this; held steady there, nothing
+const STEADY = 25;               // deg/s: steadier than this in the band starts a press; drifting through doesn't
 const PRESS_IN = 0.3;            // s held steady before the ski bends
 const PRESS_COUNT = 0.5;         // s a press must be held to count
 const FOLLOW = 0.1;              // share of a change in ski pitch the body follows on its own
@@ -325,7 +325,7 @@ function step(dt){
       s.takeoffSeen = true; s.takeoffs++;
       const ta = Math.abs(s.takeoffPhi), tz = ta < C1 ? 0 : ta < C2 ? 1 : 2;
       if (tz===0) s.cleanTakeoffs++;
-      s.flash = tz===0 ? {text:'Took off centred', t:1, c:C.good} : {text: s.takeoffPhi < 0 ? 'Took off back' : 'Took off forward', t:1.4, c:C.zone[tz]};
+      s.flash = tz===0 ? {text:'Took off centered', t:1, c:C.good} : {text: s.takeoffPhi < 0 ? 'Took off back' : 'Took off forward', t:1.4, c:C.zone[tz]};
     }
     const hg = sample(TR.h, s.x);
     if (s.y <= hg){
@@ -353,7 +353,7 @@ function step(dt){
   if (s.landPending){
     s.landPending = false;
     if (zone > 0) s.bal -= (a - C1)*2.5;   // landing on the tails or the tips is a jolt of its own
-    s.flash = zone===0 ? {text:'Landed centred', t:1.2, c:C.good} : {text: s.phi < 0 ? 'Landed back' : 'Landed forward', t:1.2, c:C.zone[zone]};
+    s.flash = zone===0 ? {text:'Landed centered', t:1.2, c:C.good} : {text: s.phi < 0 ? 'Landed back' : 'Landed forward', t:1.2, c:C.zone[zone]};
   }
 
   // the butter band, past centred. Hold steady in it on the snow and the skis flex from the tip (nose press)
@@ -361,7 +361,10 @@ function step(dt){
   s.phiRate += ((s.phi - s.prevPhi)/dt - s.phiRate)*(1 - Math.exp(-dt/0.05)); s.prevPhi = s.phi;
   const side = s.phi > 0 ? 1 : -1;
   const steadyIn = !s.air && a >= B1 && a < B2 && Math.abs(s.phiRate) < STEADY;
-  if (steadyIn && side === s.bandSide) s.bandT += dt; else { s.bandSide = steadyIn ? side : 0; s.bandT = steadyIn ? dt : 0; }
+  // a wobble in the band pauses the count rather than restarting it; leaving the band restarts it
+  const inBand = !s.air && a >= B1 && a < B2;
+  if (inBand && side === s.bandSide) s.bandT = Math.max(0, s.bandT + (steadyIn ? dt : -dt));
+  else { s.bandSide = inBand ? side : 0; s.bandT = steadyIn ? dt : 0; }
   if (s.press && (s.air || side !== s.press || a < HOLD1 || a >= B2)){
     const held = s.tRun - s.pressStart;
     if (held >= PRESS_COUNT){ s.presses++; s.flash = {text: (s.press > 0 ? 'Nose' : 'Tail')+' press '+held.toFixed(1)+' s', t:1.4, c:C.butter}; }
@@ -386,8 +389,10 @@ function step(dt){
   if (!s.air){
     if (zone===0) s.bal += 10*dt;
     else if (s.press) {}                         // a held press is controlled: it costs no balance
-    else if (steadyIn) s.bal -= SETTLE*dt;        // settling into one: committed, so it costs far less than the red around it
+    else if (steadyIn) {}                         // settling into one: committed and controlled, so it costs nothing
     else if (!s.air && a >= B1 && a < B2) s.bal -= 2*SETTLE*dt;
+    // pushed past the band by your own hips: a hard push, so the red there drains slower than a slip into it
+    else if (a >= B2 && Math.sign(s.hips) === side && Math.abs(s.hips) >= B1) s.bal -= (2*SETTLE + (a-B2)*20)*dt;
     else if (zone===1) s.bal -= (20 + (a-C1)/(C2-C1)*50)*dt;
     else s.bal -= (150 + (a-C2)*10)*dt;
   }
@@ -398,10 +403,10 @@ function step(dt){
   if (!s.air && (s.bal <= 0 || a > C3)){
     s.fallBack = s.phi < 0; s.fallLanded = s.landT >= 0 && s.tRun - s.landT < 0.8;   // a bad landing usually takes a moment to finish you
     s.fallTakeoff = s.fallLanded && Math.abs(s.takeoffPhi) >= C1 && (s.takeoffPhi < 0) === s.fallBack;
-    s.cause = s.fallTakeoff ? (s.fallBack ? 'Took off with your weight back: the tips came up and you landed on your tails.'
-                                          : 'Took off with your weight forward: the tips dropped and you landed on them.')
-            : s.fallLanded ? (s.fallBack ? 'Landed in the back seat.' : 'Landed on your tips.')
-            : (s.fallBack ? 'Back seat: the skis ran out from under you.' : 'Over the tips: the skis slowed and you didn’t.');
+    s.cause = s.fallTakeoff ? (s.fallBack ? 'Your center of mass was behind your feet at takeoff, so the tips rose and the tails landed first.'
+                                          : 'Your center of mass was ahead of your feet at takeoff, so the tips dropped and landed first.')
+            : s.fallLanded ? (s.fallBack ? 'You landed sitting back, so the skis ran out ahead of you.' : 'You landed with your center of mass ahead of your feet, so the pressure went to the tips.')
+            : (s.fallBack ? 'You sat back, with your center of mass behind your feet, so the skis ran out ahead of you.' : 'Your center of mass moved too far ahead of your feet, so the pressure went to the tips.');
     s.bal = 0; mode = 'fall'; s.fallT = 0; s.fallDir = s.fallBack ? -1 : 1; s.press = 0;
     for (let i=0;i<22;i++) s.spray.push({x:s.x, y:s.y + .3, vx:s.v*.5 + (Math.random()-.5)*4, vy:Math.random()*4, life:1});
     return;
@@ -651,12 +656,13 @@ function drawStance(){
   ctx.strokeStyle = C.line; ctx.lineWidth = 1; rr(B.x+.5, B.y+.5, B.w-1, B.h-1, 8); ctx.stroke();
   ctx.textBaseline = 'alphabetic';
   ctx.font = '600 11px Barlow, sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = C['ink-soft'];
-  if (B.w >= 118) ctx.fillText(s.air ? 'Stance · air' : 'Stance', B.x+8, B.y+15);
+  const title = s.air ? 'Stance · air' : 'Stance', label = s.press ? (s.press > 0 ? 'nose press' : 'tail press') : 'lower leg ∥ spine';
+  if (ctx.measureText(title).width + 8 + ctx.measureText(label).width <= B.w - 16) ctx.fillText(title, B.x+8, B.y+15);   // only when it fits beside the label
   // the classic cue: in a balanced stance the shin and the trunk run parallel
   const parallel = Math.abs(q.ankle - q.trunk) < 2;      // within the centred band, and only there
   ctx.textAlign = 'right';
-  if (s.press){ ctx.fillStyle = C.butter; ctx.fillText(s.press > 0 ? 'nose press' : 'tail press', B.x+B.w-8, B.y+15); }
-  else { ctx.fillStyle = parallel ? C.good : C['ink-soft']; ctx.globalAlpha = parallel ? 1 : .5; ctx.fillText('shin ∥ trunk', B.x+B.w-8, B.y+15); ctx.globalAlpha = 1; }
+  if (s.press){ ctx.fillStyle = C.butter; ctx.fillText(label, B.x+B.w-8, B.y+15); }
+  else { ctx.fillStyle = parallel ? C.good : C['ink-soft']; ctx.globalAlpha = parallel ? 1 : .5; ctx.fillText(label, B.x+B.w-8, B.y+15); ctx.globalAlpha = 1; }
   [['ankle', q.ankle], ['knee', q.kneeFlex], ['hip', q.hipFlex]].forEach(([n, v], i) => {
     const cx = B.x + 8 + (i + .5)*(B.w - 16)/3;
     ctx.textAlign = 'center'; ctx.fillStyle = C['ink-soft']; ctx.font = '500 10px Barlow, sans-serif'; ctx.fillText(n, cx, B.y+30);
@@ -699,7 +705,7 @@ function drawStance(){
   ctx.restore();
 }
 
-const WORDS = { c:'centred', b:'back', f:'forward', bb:'back seat', ff:'on the tips' };
+const WORDS = { c:'centered', b:'back', f:'forward', bb:'sitting back', ff:'on the tips' };
 function updateUI(){
   $('pause').style.visibility = mode==='run' ? 'visible' : 'hidden';
   $('centred').textContent = s.tRun > 0.5 ? Math.round(s.tCentred/s.tRun*100)+'%' : '–';
@@ -719,7 +725,7 @@ function updateUI(){
   thumb.style.left = pct+'%';
   fill.style.left = Math.min(50,pct)+'%'; fill.style.width = Math.abs(pct-50)+'%';
   const au = Math.round(Math.abs(input.u));
-  $('hipVal').textContent = au < 2 ? 'Centred' : au+'° '+(input.u<0?'back':'forward');
+  $('hipVal').textContent = au < 2 ? 'Centered' : au+'° '+(input.u<0?'back':'forward');
   slider.setAttribute('aria-valuenow', Math.round(input.u));
 }
 
@@ -727,7 +733,7 @@ function updateUI(){
 function bestText(){
   try{
     const b = JSON.parse(localStorage.getItem('foreAft.best.'+trailKey) || 'null');
-    return b ? `Best on ${TRAILS[trailKey].name}: ${b.centred}% centred` : '';
+    return b ? `Best on ${TRAILS[trailKey].name}: ${b.centred}% centered` : '';
   }catch(e){ return ''; }
 }
 function saveBest(centred){
@@ -755,10 +761,10 @@ function showMenu(){
   card.innerHTML = `
     <a class="back" href="../">← All games</a>
     <h1>Fore/Aft Pressure</h1>
-    <p class="src">Stay centred over your feet as the terrain changes.</p>
-    <p>Drag the slider to move your hips forward or back over your skis. As the slope drops away over a crest, move forward with your skis. As it flattens or rises into a dip, let your feet come forward.</p>
-    <p style="font-size:14px;color:var(--ink-soft)">The dashed line from the boots is centred; the dot is your centre of mass. The Stance panel shows the ankle, knee and hip doing the work. Fast over a crest you’ll fly, and in the air you can barely move: leave the snow on your tails and the tips rise, on your tips and they drop. Take off centred to land centred.</p>
-    <p style="font-size:14px;color:var(--ink-soft)">The skis flex as your weight moves along them. Far forward or back, just past where the red starts, there’s a purple band: hold steady in it and the far end lifts off the snow, a nose press forward or a tail press back. Beyond it you fall.</p>
+    <p>Stay centered over your feet as the terrain changes. Drag the slider to move your hips forward or back over your skis. As the slope drops away over a crest, move forward with your skis. As it flattens or rises into a dip, let your feet come forward.</p>
+    <p class="src">PSIA-AASI Alpine fundamental: “Control the relationship of the center of mass to the base of support to direct pressure along the length of the skis.”</p>
+    <p style="font-size:14px;color:var(--ink-soft)">The dashed line from the boots marks centered; the ring is your center of mass (your balance point). The Stance panel shows the ankle, knee and hip doing the work, and lights up when your lower leg and spine are parallel. Fast over a crest you’ll fly, and in the air you can barely move: leave the snow on your tails and the tips rise, on your tips and they drop. Take off centered to land centered.</p>
+    <p style="font-size:14px;color:var(--ink-soft)">The skis bend as pressure moves along them. Far forward or back, where the amber ends, there’s a purple band: hold steady in it and the far end lifts off the snow, a nose press forward or a tail press back (freestyle terms). Beyond it you fall.</p>
     ${chipsHTML()}
     <div class="best">${bestText()}</div>
     <button class="btn" id="go">Start run</button>`;
@@ -775,9 +781,9 @@ function results(title, lead){
     <h2>${title}</h2>
     ${lead}
     <div class="statsline">
-      <div><b>${centred}%</b>centred</div>
+      <div><b>${centred}%</b>centered</div>
       <div><b>${Math.round(Math.min(s.x, s.T.len)/s.T.len*100)}%</b>of the run</div>
-      <div><b>${s.takeoffs ? s.cleanTakeoffs+'/'+s.takeoffs : '–'}</b>takeoffs centred</div>
+      <div><b>${s.takeoffs ? s.cleanTakeoffs+'/'+s.takeoffs : '–'}</b>takeoffs centered</div>
       <div><b>${s.presses}</b>presses</div>
     </div>
     <div class="best">${rec ? 'New best on '+s.T.name : bestText()}</div>
@@ -788,22 +794,21 @@ function results(title, lead){
 }
 function showFall(){
   const advice = s.fallTakeoff
-    ? 'In the air there is nothing to push against, so you can’t fix it there. Be centred as the skis leave the snow.'
+    ? 'Bring your center of mass over your feet before takeoff, so the skis follow the flight path.'
     : s.fallLanded
-    ? (s.fallBack ? 'The landing was steeper than your skis. Take off centred, even a touch forward, so the tips drop with the slope.'
-                  : 'The landing was flatter than your skis. Take off centred, and let your feet come forward as you land.')
-    : (s.fallBack ? 'As the slope drops away over a crest, move forward with your skis, starting before the tips drop.'
-                  : 'As the slope flattens or rises into a dip, let your feet come forward so the tips don’t stop you.');
+    ? (s.fallBack ? 'Bring your center of mass a little forward before takeoff, so the tips drop to meet the steeper landing.'
+                  : 'Let your feet come forward during the landing, so the pressure stays underfoot on the flatter slope.')
+    : (s.fallBack ? 'Move your center of mass forward before the skis drop over a crest, so they don’t run out ahead of you.'
+                  : 'Let your feet come forward progressively as the slope flattens or rises into a dip, so the pressure stays underfoot.');
   results('Fell', `<p class="cause">${s.cause}</p><p>${advice}</p>`);
 }
 function showDone(){
   const centred = s.tRun > 0 ? s.tCentred/s.tRun : 0;
-  const lead = centred >= 0.75 ? 'Centred over your feet through the terrain.'
-    : s.tBack > s.tFwd ? 'Mostly back. Move forward as the slope drops away, before the tips drop.'
-    : 'Mostly forward. Let your feet come forward as the slope flattens into a dip.';
   const off = s.takeoffs - s.cleanTakeoffs;
-  const air = off ? ` ${off===1 ? 'One takeoff was' : off+' takeoffs were'} off centre, and the air carried it into the landing. Be centred as the skis leave the snow.` : '';
-  results('Run complete', `<p>${lead}${air}</p>`);
+  const lead = centred < 0.75 ? `Your center of mass was off center for over a quarter of the run, mostly ${s.tBack > s.tFwd ? 'behind' : 'ahead of'} your feet.`
+    : off ? `At ${off===1 ? 'one takeoff' : off+' takeoffs'} your center of mass was off center, so the tips rose or dropped in the air.`
+    : 'Your center of mass stayed over your feet for most of the run.';
+  results('Run complete', `<p>${lead}</p>`);
 }
 
 function pause(){
@@ -812,7 +817,7 @@ function pause(){
   card.innerHTML = `
     <a class="back" href="../">← All games</a>
     <h2>Paused</h2>
-    <p>${Math.round(s.tCentred/Math.max(s.tRun,1e-9)*100) + '% centred so far, ' + Math.round(s.x/s.T.len*100) + '% of the way down.'}</p>
+    <p>${Math.round(s.tCentred/Math.max(s.tRun,1e-9)*100) + '% centered so far, ' + Math.round(s.x/s.T.len*100) + '% of the way down.'}</p>
     <button class="btn" id="resume">Resume</button>
     <button class="btn ghost" id="restart">Restart run</button>
     <button class="btn ghost" id="menu">Change trail</button>`;

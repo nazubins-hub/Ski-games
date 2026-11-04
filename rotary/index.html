@@ -259,7 +259,7 @@ function step(dt){
   const kmh = s.v*3.6;
 
   if (kmh > T.target*FALL_X){
-    s.cause = `Too fast: ${Math.round(kmh)} km/h. The skis stayed pointed down the hill too long.`;
+    s.cause = `You kept the skis pointed toward the fall line too long, so they sped up to ${Math.round(kmh)} km/h.`;
     mode = 'fall'; s.fallT = 0; s.spin = (Math.random()<.5?-1:1)*(4+Math.random()*3);
     for (let i=0;i<26;i++) s.spray.push({x:s.x, y:s.y, vx:(Math.random()-.5)*6 + s.v*Math.sin(s.h)*.5, vy:Math.random()*4 + s.v*Math.cos(s.h)*.5, life:1});
     return;
@@ -280,7 +280,7 @@ function step(dt){
   if (s.v < 0.15){
     if (!s.stopped){ s.stopped = true; s.stops++; s.flash = {text:'Stopped', t:1.4, c:C.slow}; }
   } else if (s.v > 1) s.stopped = false;
-  if (s.stopped && !s.flash) s.flash = {text:'Turn the skis toward the fall line', t:1, c:C.slow};
+  if (s.stopped && !s.flash) s.flash = {text:'Turn toward the fall line', t:1, c:C.slow};
 
   // speed band
   const zone = kmh < T.target - T.band ? 0 : kmh > T.target + T.band ? 2 : 1;
@@ -560,8 +560,9 @@ function showMenu(){
   card.innerHTML = `
     <a class="back" href="../">← All games</a>
     <h1>Rotary</h1>
-    <p class="src">Turn shape controls speed.</p>
-    <p>Grab the wheel and turn it to turn your skis. Point them down the hill and you speed up. Turn them across the hill and you slow down. Keep turning and they point back up the hill, which stops you. Only near your top speed, with a quick turn, can you carry it right round. Point them down again to go.</p>
+    <p>This game is about turn shape and speed. Grab the wheel and turn it to turn your skis. Point them down the hill (the fall line) and you speed up. Turn them across the hill and you slow down. Keep turning and they point back up the hill, which stops you. Only near the speed that makes you fall, turning quickly, can you turn a full circle without stopping. Point them down again to go.</p>
+    <p class="src">PSIA-AASI Alpine fundamental: “Control the skis' rotation with leg rotation, separate from the upper body.”</p>
+    <p class="src">“Consistent speed is created by turn shape.” National Alpine Activities List</p>
     <p style="font-size:14px;color:var(--ink-soft)">The pitch changes as you go, so one turn shape won’t hold your speed. The green marks around the wheel show the ski direction that holds it right now: inside them you speed up, outside them you slow down.</p>
     ${chipsHTML()}
     <div class="best"><b class="target" style="color:var(--ink)">${targetText()}</b><br>${bestText()}</div>
@@ -592,15 +593,15 @@ function results(title, lead){
   overlay.hidden = false;
 }
 function showFall(){
-  results('Fell', `<p class="cause">${s.cause}</p><p>Finish each turn further across the hill to check your speed, especially where it steepens.</p>`);
+  results('Fell', `<p class="cause">${s.cause}</p><p>Turn the skis more across the hill so they slow down, especially where it steepens.</p>`);
 }
 function showDone(){
   const steady = s.tRun > 0 ? s.tIn/s.tRun : 0;
   let lead;
-  if (steady >= 0.8) lead = 'Steady speed all the way down. Turn shape did the speed control.';
-  else if (s.stops) lead = `Stopped ${s.stops===1 ? 'once' : s.stops+' times'}. Turning back up the hill always stops you; to hold the band, turn back toward the fall line before you slow too much.`;
-  else if (s.tFast > s.tSlow) lead = 'Mostly too fast. Finish each turn further across the hill, especially where it steepens.';
-  else lead = 'Mostly too slow. Let the skis point further down the hill before turning them across.';
+  if (steady >= 0.8) lead = 'Your turn shape kept your speed steady for most of the run.';
+  else if (s.stops) lead = `Stopped ${s.stops===1 ? 'once' : s.stops+' times'}: the skis stayed turned away from the fall line until your speed ran out.`;
+  else if (s.tFast > s.tSlow) lead = 'The skis stayed pointed toward the fall line too long, so you spent more time fast than slow.';
+  else lead = 'The skis stayed turned away from the fall line too long, so you spent more time slow than fast.';
   results('Run complete', `<p>${lead}</p>`);
 }
 

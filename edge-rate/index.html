@@ -280,13 +280,13 @@ function step(dt){
     s.peak = Math.max(s.peak, rf);
     const rm = Math.max(r, rf), increasing = Math.sign(rf > r ? s.rateFast : s.rate)===Math.sign(s.edge) && Math.abs(s.edge) > 3;
     if (rm < T.t2*1.5 && s.edgeHitT >= 0 && s.tRun - s.edgeHitT < 0.25){
-      s.fallWord = ''; s.cause = 'Ran into the edge of the trail with too little balance left.';
+      s.fallWord = ''; s.cause = 'The skis ran into the side of the trail with too little balance left.';
     } else if (rm < T.t1){
-      s.fallWord = 'abruptly'; s.cause = 'Edging movement started and stopped abruptly.';
+      s.fallWord = 'abruptly'; s.cause = 'You started and stopped the edging movement abruptly, so you lost balance.';
     } else if (rm < T.t2){             // amber: quick for too long drains balance, but it is not abrupt
-      s.fallWord = 'quickly'; s.cause = increasing ? 'Edge angle increased quickly for too long.' : 'Edges flattened quickly for too long. Skis slip.';
+      s.fallWord = 'quickly'; s.cause = increasing ? 'You tipped the skis onto edge quickly for too long, so balance ran out.' : 'You flattened the skis quickly for too long, so balance ran out.';
     } else {
-      s.fallWord = 'abruptly'; s.cause = increasing ? 'Edge angle increased abruptly.' : 'Edges flattened abruptly. Skis slip.';
+      s.fallWord = 'abruptly'; s.cause = increasing ? 'You tipped the skis onto edge abruptly, so you lost balance.' : 'You flattened the skis abruptly, so you lost balance.';
     }
     s.bal = 0; mode = 'fall'; s.fallT = 0; s.spin = (Math.random()<.5?-1:1)*(4+Math.random()*3);
     for (let i=0;i<26;i++) s.spray.push({x:s.x, y:s.y, vx:(Math.random()-.5)*6 + s.v*Math.sin(s.h)*.5, vy:Math.random()*4 + s.v*Math.cos(s.h)*.5, life:1});
@@ -493,8 +493,9 @@ function showMenu(){
   card.innerHTML = `
     <a class="back" href="../">← All games</a>
     <h1>Edging</h1>
-    <p class="src">Rate is the speed at which movement occurs. <br>ATM, Chapter 6</p>
-    <p>Drag the slider to tip your skis on edge and link turns through the gates. Increase and decrease edge angle progressively. Move it abruptly and you’ll fall.</p>
+    <p>Drag the slider to tip your skis on edge and link turns through the gates. Tip and flatten the skis progressively. Tip or flatten abruptly and you’ll fall.</p>
+    <p class="src">PSIA-AASI Alpine fundamental: “Control edge angles through a combination of inclination and angulation.”</p>
+    <p class="src">“Rate is the speed at which movement occurs.” Alpine Technical Manual, Ch. 6</p>
     <p style="font-size:14px;color:var(--ink-soft)">Your tracks and the rate bar show your rate: green is progressive, amber is quick, red is abrupt.</p>
     ${chipsHTML()}
     <div class="best">${bestText()}</div>
@@ -523,12 +524,12 @@ function results(title, lead){
   overlay.hidden = false;
 }
 function showFall(){
-  const advice = s.fallWord ? `Rate: ${s.fallWord}. Aim to edge progressively, especially through the edge change.`
-                            : 'Start the next edge change sooner so the turn finishes on the trail, and edge progressively to keep balance in reserve.';
+  const advice = s.fallWord ? 'Spread each edging movement over more of the turn so the skis tip and flatten progressively.'
+                            : 'Start the next edge change sooner so the skis turn away before they reach the side of the trail.';
   results('Fell', `<p class="cause">${s.cause}</p><p>${advice}</p>`);
 }
 function showDone(){
-  const lead = s.passed===GATE_COUNT ? '<p>Clean run. Edge release flowed into edge engagement.</p>' : '<p>Made it down. Missed gates usually mean the edge change came late, not that it needs to come faster.</p>';
+  const lead = s.passed===GATE_COUNT ? '<p>The skis went through every gate.</p>' : '<p>Missed gates usually mean the edge change came late, not that the skis need to tip and flatten more quickly.</p>';
   results('Run complete', lead);
 }
 

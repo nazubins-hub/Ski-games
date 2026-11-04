@@ -95,7 +95,7 @@ body{height:100%;margin:0;background:var(--snow);color:var(--ink);font-family:Ba
   <header class="hud">
     <div class="stat"><span class="k">Balanced</span><span class="v" id="balanced">–</span></div>
     <div class="stat"><span class="k">Turns</span><span class="v" id="turns">0</span></div>
-    <div class="stat"><span class="k">On time</span><span class="v" id="ontime">–</span></div>
+    <div class="stat"><span class="k">Not late</span><span class="v" id="ontime">–</span></div>
     <div class="balance"><span class="k">Balance</span><div class="bar"><i id="balFill"></i></div></div>
     <button class="pause" id="pause" aria-label="Pause"><svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="1" width="4" height="14" rx="1" fill="currentColor"/><rect x="9" y="1" width="4" height="14" rx="1" fill="currentColor"/></svg></button>
   </header>
@@ -245,7 +245,7 @@ window.addEventListener('keyup', e => {
 });
 
 // ---------- simulation ----------
-const GRADE = { early:{text:'Early transfer', c:'cool'}, ontime:{text:'On time', c:'good'}, late:{text:'Late onto the new outside ski', c:'warn'} };
+const GRADE = { early:{text:'Early transfer', c:'cool'}, ontime:{text:'On time', c:'good'}, late:{text:'Late transfer', c:'warn'} };
 function grade(kind, turn){
   s.grades.push({ kind, turn });
   s.flash = { text: GRADE[kind].text, t:1.3, c: C[GRADE[kind].c] };
@@ -272,7 +272,7 @@ function step(dt){
   if (nt && (!s.xfer || s.xfer.turn !== nt)){
     if (s.xfer && !s.xfer.done) grade('late', s.xfer.turn.n);
     s.xfer = { turn:nt, level:XFER*nt.peak, tT:null, tP:null, done: nt.n === 1 };   // the first turn has nothing to transfer from
-    if (nt.n === 1 && !s.hinted){ s.hinted = true; s.flash = { text: nt.dir > 0 ? 'Left turn: stand on the right ski' : 'Right turn: stand on the left ski', t:2, c:C.cool }; }
+    if (nt.n === 1 && !s.hinted){ s.hinted = true; s.flash = { text: nt.dir > 0 ? 'Left turn: weight the right ski' : 'Right turn: weight the left ski', t:2, c:C.cool }; }
   }
   const X = s.xfer;
   if (X && !X.done){
@@ -297,11 +297,11 @@ function step(dt){
   if (zone===0) s.tBal += dt; else if (s.inside) s.tIn += dt; else s.tOver += dt;
 
   if (s.bal <= 0 || (s.inside && e >= IN_FALL)){
-    const prev = CO.turns.filter(t => t.s1 < s.dist).pop(), stale = !s.inside && prev && s.p*prev.dir > OUT1;
+    const prev = CO.turns.filter(t => (t.s0 + t.s1)/2 <= s.dist).pop(), stale = !s.inside && prev && s.p*prev.dir > OUT1;   // the turn you're leaving: its apex is behind you
     s.fallInside = s.inside || stale;
-    s.cause = s.inside ? 'Inside ski washed out: too much weight on the inside ski.'
-            : stale ? 'Still on the old outside ski: the weight moved across too late.'
-            : 'Stood on one ski where the turn didn’t need it.';
+    s.cause = s.inside ? 'Your hips were too far toward the inside ski, so the skis slipped.'
+            : stale ? 'Your hips stayed over the old outside ski too long, so the new outside ski stayed light.'
+            : 'Your hips stayed too far toward one ski in a straight or gentle turn, so the other ski went light.';
     s.bal = 0; mode = 'fall'; s.fallT = 0; s.fallSide = s.lean >= 0 ? 1 : -1;
     return;
   }
@@ -544,9 +544,9 @@ function showMenu(){
   card.innerHTML = `
     <a class="back" href="../">← All games</a>
     <h1>Ski-to-Ski Pressure</h1>
-    <p class="src">Direct pressure toward the outside ski.</p>
-    <p>Drag the slider to move your weight from ski to ski. Every turn asks for a share on the outside ski, more the harder it turns, and the green band shows how much. Move to the new outside ski early at each transition.</p>
-    <p style="font-size:14px;color:var(--ink-soft)">Watch the legs: in a turn the outside leg is long and the inside leg short, with the hips over the outside ski. The dashed ring is where the hips belong; too much weight on the inside ski and it washes out.</p>
+    <p>Drag the slider to move your weight from ski to ski. Every turn asks for a share on the outside ski, more the harder it turns, and the green band shows how much. In this game, aim to move to the new outside ski early at each transition.</p>
+    <p class="src">PSIA-AASI Alpine fundamental: “Control pressure from ski to ski and direct pressure toward the outside ski.”</p>
+    <p style="font-size:14px;color:var(--ink-soft)">Watch the legs: in a turn the outside leg extends long and the inside leg flexes short, with the hips over the outside ski. The dashed ring is where the hips belong; too much weight on the inside ski and the skis slip.</p>
     ${chipsHTML()}
     <div class="best">${bestText()}</div>
     <button class="btn" id="go">Start run</button>`;
@@ -577,16 +577,16 @@ function results(title, lead){
   overlay.hidden = false;
 }
 function showFall(){
-  const advice = s.fallInside ? 'Move to the new outside ski early, and give it more as the turn tightens.'
-                              : 'A straight or a gentle turn wants weight on both skis.';
+  const advice = s.fallInside ? 'Move your hips toward the new outside ski early, then progressively more as the turn tightens, so the inside ski stays light.'
+                              : 'Keep your hips nearer the middle throughout straights and gentle turns, so both skis carry weight.';
   results('Fell', `<p class="cause">${s.cause}</p><p>${advice}</p>`);
 }
 function showDone(){
   const balanced = s.tRun > 0 ? s.tBal/s.tRun : 0, late = s.grades.filter(g => g.kind === 'late').map(g => g.turn);
-  const lead = late.length ? `Late onto the new outside ski in ${listTurns(late)}. Start moving across as the old turn finishes.`
-    : balanced >= 0.8 ? 'Outside ski every turn, and across early at every transition.'
-    : s.tIn > s.tOver ? 'Too much on the inside ski. Give the outside ski more as each turn tightens.'
-    : 'More weight on one ski than the turns needed. Gentle turns want more on both skis.';
+  const lead = late.length ? `Late transfer to the new outside ski in ${listTurns(late)}.`
+    : balanced >= 0.8 ? 'Every transfer to the new outside ski was early or on time.'
+    : s.tIn > s.tOver ? 'Off the green band, there was mostly too much weight on the inside ski.'
+    : 'Off the green band, there was mostly too much weight on one ski.';
   results('Run complete', `<p>${lead}</p>`);
 }
 
